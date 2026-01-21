@@ -3,6 +3,7 @@ use soroban_sdk::{Env, String, Address, BytesN, testutils::Address as _};
 
 #[test]
 fn test_create_subscription() {
+    // Test basic subscription creation
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -21,6 +22,7 @@ fn test_create_subscription() {
         &next_renewal,
     );
 
+    // Verify subscription metadata was stored correctly
     let metadata = client.get_subscription(&subscription_id).unwrap();
     assert_eq!(metadata.service_id, service_id);
     assert_eq!(metadata.billing_interval, billing_interval);
@@ -28,6 +30,7 @@ fn test_create_subscription() {
     assert_eq!(metadata.next_renewal, next_renewal);
     assert_eq!(metadata.is_active, true);
 
+    // Verify subscription is mapped to user
     let user_subs = client.get_user_subscriptions(&user);
     assert_eq!(user_subs.len(), 1);
     assert_eq!(user_subs.get(0).unwrap(), subscription_id);
@@ -35,6 +38,7 @@ fn test_create_subscription() {
 
 #[test]
 fn test_create_multiple_subscriptions() {
+    // Test that a user can have multiple subscriptions
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -65,6 +69,7 @@ fn test_create_multiple_subscriptions() {
         &1735689600u64,
     );
 
+    // Verify all subscriptions are associated with the user
     let user_subs = client.get_user_subscriptions(&user);
     assert_eq!(user_subs.len(), 3);
     assert!(user_subs.contains(&sub1_id));
@@ -74,6 +79,7 @@ fn test_create_multiple_subscriptions() {
 
 #[test]
 fn test_update_subscription() {
+    // Test updating subscription metadata
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -87,6 +93,7 @@ fn test_update_subscription() {
         &1735689600u64,
     );
 
+    // Update amount and renewal date
     let new_amount = 1799i128;
     let new_renewal = 1738281600u64;
     client.update_subscription(
@@ -98,6 +105,7 @@ fn test_update_subscription() {
         &Some(new_renewal),
     );
 
+    // Verify updates were applied
     let metadata = client.get_subscription(&subscription_id).unwrap();
     assert_eq!(metadata.expected_amount, new_amount);
     assert_eq!(metadata.next_renewal, new_renewal);
@@ -105,6 +113,7 @@ fn test_update_subscription() {
 
 #[test]
 fn test_cancel_subscription() {
+    // Test canceling a subscription
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -120,6 +129,7 @@ fn test_cancel_subscription() {
 
     client.cancel_subscription(&subscription_id, &user);
 
+    // Verify subscription is marked as inactive
     let metadata = client.get_subscription(&subscription_id).unwrap();
     assert_eq!(metadata.is_active, false);
 }
@@ -127,6 +137,7 @@ fn test_cancel_subscription() {
 #[test]
 #[should_panic(expected = "billing_interval must be greater than 0")]
 fn test_create_subscription_invalid_billing_interval() {
+    // Test validation: billing interval cannot be zero
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -144,6 +155,7 @@ fn test_create_subscription_invalid_billing_interval() {
 #[test]
 #[should_panic(expected = "expected_amount must be non-negative")]
 fn test_create_subscription_negative_amount() {
+    // Test validation: expected amount must be positive
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -161,6 +173,7 @@ fn test_create_subscription_negative_amount() {
 #[test]
 #[should_panic(expected = "subscription not found")]
 fn test_update_nonexistent_subscription() {
+    // Test error handling: cannot update non-existent subscription
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -181,6 +194,7 @@ fn test_update_nonexistent_subscription() {
 #[test]
 #[should_panic(expected = "subscription is already cancelled")]
 fn test_cancel_already_cancelled_subscription() {
+    // Test error handling: cannot cancel an already cancelled subscription
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -201,6 +215,7 @@ fn test_cancel_already_cancelled_subscription() {
 #[test]
 #[should_panic(expected = "subscription is not active")]
 fn test_update_cancelled_subscription() {
+    // Test error handling: cannot update a cancelled subscription
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -227,6 +242,7 @@ fn test_update_cancelled_subscription() {
 
 #[test]
 fn test_get_nonexistent_subscription() {
+    // Test querying non-existent subscription returns None
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -238,6 +254,7 @@ fn test_get_nonexistent_subscription() {
 
 #[test]
 fn test_multiple_users_independent() {
+    // Test that different users have independent subscription lists
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -261,6 +278,7 @@ fn test_multiple_users_independent() {
         &1735689600u64,
     );
 
+    // Verify users have separate subscription lists
     let user1_subs = client.get_user_subscriptions(&user1);
     assert_eq!(user1_subs.len(), 1);
     assert_eq!(user1_subs.get(0).unwrap(), sub1_id);
@@ -272,6 +290,7 @@ fn test_multiple_users_independent() {
 
 #[test]
 fn test_subscription_id_uniqueness() {
+    // Test that each subscription gets a unique ID
     let env = Env::default();
     let contract_id = env.register(SubscriptionRegistry, ());
     let client = SubscriptionRegistryClient::new(&env, &contract_id);
@@ -300,6 +319,7 @@ fn test_subscription_id_uniqueness() {
         &1735689600u64,
     );
 
+    // Verify all subscription IDs are unique
     assert_ne!(sub1_id, sub2_id);
     assert_ne!(sub2_id, sub3_id);
     assert_ne!(sub1_id, sub3_id);
