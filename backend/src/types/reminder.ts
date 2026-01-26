@@ -61,3 +61,21 @@ export interface DeliveryResult {
   metadata?: Record<string, any>;
 }
 
+export interface UserPreferences {
+  user_id: string;
+  notification_channels: ('email' | 'push')[];
+  reminder_timing: number[]; // days before
+  email_opt_ins: {
+    marketing: boolean;
+    reminders: boolean;
+    updates: boolean;
+  };
+  automation_flags: {
+    auto_renew: boolean;
+    auto_retry: boolean;
+  };
+  updated_at: string;
+}
+
+export type PartialUserPreferences = Partial<Omit<UserPreferences, 'user_id' | 'updated_at'>>;
+

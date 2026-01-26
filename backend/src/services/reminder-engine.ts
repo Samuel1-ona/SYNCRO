@@ -11,6 +11,7 @@ import {
   NotificationDelivery,
 } from '../types/reminder';
 import { calculateBackoffDelay } from '../utils/retry';
+import { userPreferenceService } from './user-preference-service';
 
 export interface ReminderEngineOptions {
   defaultDaysBefore?: number[];
@@ -104,13 +105,14 @@ export class ReminderEngine {
       };
 
       // Determine delivery channels (check user preferences, default to email)
-      const deliveryChannels: string[] = ['email']; // TODO: Add push if user has enabled it
+      const preferences = await userPreferenceService.getPreferences(reminder.user_id);
+      const deliveryChannels = preferences.notification_channels;
 
       // Create delivery records
       const deliveries: NotificationDelivery[] = [];
 
       // Send email notification
-      if (deliveryChannels.includes('email')) {
+      if (deliveryChannels.includes('email') && preferences.email_opt_ins.reminders) {
         const emailDelivery = await this.createDeliveryRecord(
           reminder.id,
           reminder.user_id,
@@ -358,11 +360,15 @@ export class ReminderEngine {
       for (const subscription of subscriptions) {
         if (!subscription.active_until) continue;
 
+        // Fetch user preferences for reminder timing
+        const preferences = await userPreferenceService.getPreferences(subscription.user_id);
+        const userDaysBefore = preferences.reminder_timing;
+
         const renewalDate = new Date(subscription.active_until);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        for (const days of daysBefore) {
+        for (const days of userDaysBefore) {
           const reminderDate = new Date(renewalDate);
           reminderDate.setDate(reminderDate.getDate() - days);
           reminderDate.setHours(0, 0, 0, 0);
@@ -446,7 +452,7 @@ export class ReminderEngine {
         .eq('is_connected', true)
         .limit(1)
         .single();
-      
+
       if (emailAccount) {
         email = emailAccount.email;
       }
