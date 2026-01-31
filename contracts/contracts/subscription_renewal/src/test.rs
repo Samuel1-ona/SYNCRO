@@ -98,3 +98,132 @@ fn test_cooldown_enforcement() {
     // Try again immediately (cooldown not met)
     client.renew(&sub_id, &3, &10, &false);
 }
+
+#[test]
+fn test_event_emission_on_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(SubscriptionRenewalContract, ());
+    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    let sub_id = 999;
+
+    client.init_sub(&user, &sub_id);
+
+    // Successful renewal should emit RenewalSuccess event
+    let result = client.renew(&sub_id, &3, &10, &true);
+    assert!(result);
+
+    // Verify event was emitted by checking subscription data
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Active);
+    assert_eq!(data.failure_count, 0);
+}
+
+#[test]
+fn test_zero_max_retries() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(SubscriptionRenewalContract, ());
+    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    let sub_id = 111;
+    let max_retries = 0; // Zero retries means first failure should transition to Failed
+
+    client.init_sub(&user, &sub_id);
+
+    // First failure with max_retries = 0 should immediately fail
+    let result = client.renew(&sub_id, &max_retries, &10, &false);
+    assert!(!result);
+
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Failed);
+    assert_eq!(data.failure_count, 1);
+}
+
+#[test]
+fn test_multiple_failures_then_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(SubscriptionRenewalContract, ());
+    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    let sub_id = 222;
+    let max_retries = 3;
+    let cooldown = 10;
+
+    client.init_sub(&user, &sub_id);
+
+    // First failure
+    client.renew(&sub_id, &max_retries, &cooldown, &false);
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Retrying);
+    assert_eq!(data.failure_count, 1);
+
+    // Advance ledger
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 20;
+    });
+
+    // Second failure
+    client.renew(&sub_id, &max_retries, &cooldown, &false);
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Retrying);
+    assert_eq!(data.failure_count, 2);
+
+    // Advance ledger
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 40;
+    });
+
+    // Now succeed - should reset failure count and return to Active
+    let result = client.renew(&sub_id, &max_retries, &cooldown, &true);
+    assert!(result);
+
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Active);
+    assert_eq!(data.failure_count, 0);
+}
+
+#[test]
+#[should_panic(expected = "Subscription is in FAILED state")]
+fn test_cannot_renew_failed_subscription() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(SubscriptionRenewalContract, ());
+    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    let sub_id = 333;
+    let max_retries = 1;
+    let cooldown = 10;
+
+    client.init_sub(&user, &sub_id);
+
+    // Fail twice to reach Failed state
+    client.renew(&sub_id, &max_retries, &cooldown, &false);
+
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 20;
+    });
+
+    client.renew(&sub_id, &max_retries, &cooldown, &false);
+
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Failed);
+
+    // Advance ledger
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 40;
+    });
+
+    // Try to renew a FAILED subscription - should panic
+    client.renew(&sub_id, &max_retries, &cooldown, &true);
+}

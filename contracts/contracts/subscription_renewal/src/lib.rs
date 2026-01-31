@@ -1,6 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env};
+use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, Env};
 
+/// Represents the current state of a subscription
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SubscriptionState {
@@ -9,6 +10,7 @@ pub enum SubscriptionState {
     Failed,
 }
 
+/// Core subscription data stored on-chain
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubscriptionData {
@@ -16,6 +18,26 @@ pub struct SubscriptionData {
     pub state: SubscriptionState,
     pub failure_count: u32,
     pub last_attempt_ledger: u32,
+}
+
+/// Events for subscription renewal tracking
+#[contractevent]
+pub struct RenewalSuccess {
+    pub sub_id: u64,
+    pub owner: Address,
+}
+
+#[contractevent]
+pub struct RenewalFailed {
+    pub sub_id: u64,
+    pub failure_count: u32,
+    pub ledger: u32,
+}
+
+#[contractevent]
+pub struct StateTransition {
+    pub sub_id: u64,
+    pub new_state: SubscriptionState,
 }
 
 #[contract]
@@ -66,41 +88,48 @@ impl SubscriptionRenewalContract {
         }
 
         if succeed {
-            // Simulated success
+            // Simulated success - renewal successful
             data.state = SubscriptionState::Active;
             data.failure_count = 0;
             data.last_attempt_ledger = current_ledger;
             env.storage().persistent().set(&key, &data);
 
-            #[allow(deprecated)]
-            env.events()
-                .publish((symbol_short!("renewed"), sub_id), data.owner);
+            // Emit renewal success event
+            RenewalSuccess {
+                sub_id,
+                owner: data.owner.clone(),
+            }
+            .publish(&env);
+
             true
         } else {
-            // Simulated failure
+            // Simulated failure - renewal failed, apply retry logic
             data.failure_count += 1;
             data.last_attempt_ledger = current_ledger;
 
-            #[allow(deprecated)]
-            env.events().publish(
-                (symbol_short!("failed"), sub_id),
-                (data.failure_count, current_ledger),
-            );
+            // Emit renewal failure event
+            RenewalFailed {
+                sub_id,
+                failure_count: data.failure_count,
+                ledger: current_ledger,
+            }
+            .publish(&env);
 
+            // Determine new state based on retry count
             if data.failure_count > max_retries {
                 data.state = SubscriptionState::Failed;
-                #[allow(deprecated)]
-                env.events().publish(
-                    (symbol_short!("state_ch"), sub_id),
-                    SubscriptionState::Failed,
-                );
+                StateTransition {
+                    sub_id,
+                    new_state: SubscriptionState::Failed,
+                }
+                .publish(&env);
             } else {
                 data.state = SubscriptionState::Retrying;
-                #[allow(deprecated)]
-                env.events().publish(
-                    (symbol_short!("state_ch"), sub_id),
-                    SubscriptionState::Retrying,
-                );
+                StateTransition {
+                    sub_id,
+                    new_state: SubscriptionState::Retrying,
+                }
+                .publish(&env);
             }
 
             env.storage().persistent().set(&key, &data);
