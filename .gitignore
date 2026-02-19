@@ -96,4 +96,6 @@ temp/
 # Testing
 .coverage/
 coverage/
+*.claude
+CLAUDE.md
 

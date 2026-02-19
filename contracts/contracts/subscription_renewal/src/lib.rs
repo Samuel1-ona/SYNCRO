@@ -1,6 +1,14 @@
 #![no_std]
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, Env};
 
+/// Storage keys for contract-level state (admin, pause flag).
+#[contracttype]
+#[derive(Clone)]
+enum ContractKey {
+    Admin,
+    Paused,
+}
+
 /// Represents the current state of a subscription
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -40,11 +48,54 @@ pub struct StateTransition {
     pub new_state: SubscriptionState,
 }
 
+#[contractevent]
+pub struct PauseToggled {
+    pub paused: bool,
+}
+
 #[contract]
 pub struct SubscriptionRenewalContract;
 
 #[contractimpl]
 impl SubscriptionRenewalContract {
+    // ── Admin / Pause management ──────────────────────────────────
+
+    /// Initialize the contract admin. Can only be called once.
+    pub fn init(env: Env, admin: Address) {
+        if env.storage().instance().has(&ContractKey::Admin) {
+            panic!("Already initialized");
+        }
+        env.storage().instance().set(&ContractKey::Admin, &admin);
+        env.storage().instance().set(&ContractKey::Paused, &false);
+    }
+
+    /// Internal helper – loads admin and calls `require_auth`.
+    fn require_admin(env: &Env) {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&ContractKey::Admin)
+            .expect("Contract not initialized");
+        admin.require_auth();
+    }
+
+    /// Pause or unpause all renewal execution. Admin only.
+    pub fn set_paused(env: Env, paused: bool) {
+        Self::require_admin(&env);
+        env.storage().instance().set(&ContractKey::Paused, &paused);
+        PauseToggled { paused }.publish(&env);
+    }
+
+    /// Query the current pause state.
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&ContractKey::Paused)
+            .unwrap_or(false)
+    }
+
+    // ── Subscription logic ────────────────────────────────────────
+
     /// Initialize a subscription
     pub fn init_sub(env: Env, info: Address, sub_id: u64) {
         let key = sub_id;
@@ -68,6 +119,11 @@ impl SubscriptionRenewalContract {
         cooldown_ledgers: u32,
         succeed: bool,
     ) -> bool {
+        // Check global pause
+        if Self::is_paused(env.clone()) {
+            panic!("Protocol is paused");
+        }
+
         let key = sub_id;
         let mut data: SubscriptionData = env
             .storage()

@@ -4,13 +4,93 @@ use soroban_sdk::{
     Address, Env,
 };
 
-#[test]
-fn test_renewal_success() {
+/// Helper: creates env, registers contract, initializes admin, returns (client, admin).
+fn setup() -> (Env, SubscriptionRenewalContractClient<'static>, Address) {
     let env = Env::default();
     env.mock_all_auths();
 
     let contract_id = env.register(SubscriptionRenewalContract, ());
     let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.init(&admin);
+
+    (env, client, admin)
+}
+
+// ── Pause feature tests ──────────────────────────────────────────
+
+#[test]
+fn test_default_not_paused() {
+    let (_env, client, _admin) = setup();
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_admin_can_pause() {
+    let (_env, client, _admin) = setup();
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+}
+
+#[test]
+fn test_admin_can_unpause() {
+    let (_env, client, _admin) = setup();
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+}
+
+#[test]
+#[should_panic(expected = "Protocol is paused")]
+fn test_renew_blocked_when_paused() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 100;
+
+    client.init_sub(&user, &sub_id);
+    client.set_paused(&true);
+
+    // Should panic because the protocol is paused
+    client.renew(&sub_id, &3, &10, &true);
+}
+
+#[test]
+fn test_renew_works_after_unpause() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 101;
+
+    client.init_sub(&user, &sub_id);
+
+    // Pause then unpause
+    client.set_paused(&true);
+    client.set_paused(&false);
+
+    // Should succeed now
+    let result = client.renew(&sub_id, &3, &10, &true);
+    assert!(result);
+}
+
+#[test]
+#[should_panic(expected = "Already initialized")]
+fn test_cannot_init_twice() {
+    let (env, client, _admin) = setup();
+    let another = Address::generate(&env);
+    client.init(&another);
+}
+
+// ── Original tests (updated to use setup helper) ─────────────────
+
+#[test]
+fn test_renewal_success() {
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 123;
@@ -27,11 +107,7 @@ fn test_renewal_success() {
 
 #[test]
 fn test_retry_logic() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 456;
@@ -51,19 +127,10 @@ fn test_retry_logic() {
     // Advance ledger to pass cooldown
     env.ledger().with_mut(|li| {
         li.sequence_number = 100;
-    }); // jump ahead
+    });
 
     // renewal attempt but fail again (ledger 100)
     client.renew(&sub_id, &max_retries, &cooldown, &false);
-
-    // Advance ledger less than cooldown from 100
-    env.ledger().with_mut(|li| {
-        li.sequence_number = 105;
-    });
-
-    // Should fail panic due to cooldown
-    // This part is tricky to test with simple panic check in soroban test utils sometimes,
-    // but the logic is there. We'll skip the panic test and test the limit.
 
     // Advance past cooldown
     env.ledger().with_mut(|li| {
@@ -81,11 +148,7 @@ fn test_retry_logic() {
 #[test]
 #[should_panic(expected = "Cooldown period active")]
 fn test_cooldown_enforcement() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 789;
@@ -101,11 +164,7 @@ fn test_cooldown_enforcement() {
 
 #[test]
 fn test_event_emission_on_success() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 999;
@@ -124,15 +183,11 @@ fn test_event_emission_on_success() {
 
 #[test]
 fn test_zero_max_retries() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 111;
-    let max_retries = 0; // Zero retries means first failure should transition to Failed
+    let max_retries = 0;
 
     client.init_sub(&user, &sub_id);
 
@@ -147,11 +202,7 @@ fn test_zero_max_retries() {
 
 #[test]
 fn test_multiple_failures_then_success() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 222;
@@ -194,11 +245,7 @@ fn test_multiple_failures_then_success() {
 #[test]
 #[should_panic(expected = "Subscription is in FAILED state")]
 fn test_cannot_renew_failed_subscription() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(SubscriptionRenewalContract, ());
-    let client = SubscriptionRenewalContractClient::new(&env, &contract_id);
+    let (env, client, _admin) = setup();
 
     let user = Address::generate(&env);
     let sub_id = 333;
