@@ -6,6 +6,7 @@ import { schedulerService } from './services/scheduler';
 import { reminderEngine } from './services/reminder-engine';
 import subscriptionRoutes from './routes/subscriptions';
 import { monitoringService } from './services/monitoring-service';
+import { eventListener } from './services/event-listener';
 
 // Load environment variables
 dotenv.config();
@@ -133,12 +134,18 @@ const server = app.listen(PORT, () => {
 
   // Start scheduler
   schedulerService.start();
+  
+  // Start event listener
+  eventListener.start().catch(err => {
+    logger.error('Failed to start event listener:', err);
+  });
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
   schedulerService.stop();
+  eventListener.stop();
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);
@@ -148,6 +155,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully');
   schedulerService.stop();
+  eventListener.stop();
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);
