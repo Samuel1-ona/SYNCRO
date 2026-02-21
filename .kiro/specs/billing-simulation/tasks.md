@@ -65,7 +65,7 @@
   - **Property 7: Insufficient balance risk is correctly identified**
   - **Validates: Requirements 4.1, 4.2, 4.3**
 
-- [ ] 4. Integrate simulation route into main application
+- [x] 4. Integrate simulation route into main application
   - Import simulation routes in `backend/src/index.ts`
   - Mount simulation routes at `/api/simulation`
   - Ensure CORS configuration includes simulation endpoint

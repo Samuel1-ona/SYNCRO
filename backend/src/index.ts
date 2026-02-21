@@ -5,6 +5,7 @@ import logger from './config/logger';
 import { schedulerService } from './services/scheduler';
 import { reminderEngine } from './services/reminder-engine';
 import subscriptionRoutes from './routes/subscriptions';
+import simulationRoutes from './routes/simulation';
 import { monitoringService } from './services/monitoring-service';
 import { eventListener } from './services/event-listener';
 
@@ -51,6 +52,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/simulation', simulationRoutes);
 
 // API Routes (Public/Standard)
 app.get('/api/reminders/status', (req, res) => {
