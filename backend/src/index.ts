@@ -11,6 +11,7 @@ import subscriptionRoutes from './routes/subscriptions';
 import merchantRoutes from './routes/merchants';
 import { monitoringService } from './services/monitoring-service';
 import { eventListener } from './services/event-listener';
+import { expiryService } from './services/expiry-service';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -114,6 +115,19 @@ app.post('/api/reminders/retry', adminAuth, async (req, res) => {
     res.json({ success: true, message: 'Retries processed' });
   } catch (error) {
     logger.error('Error processing retries:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+app.post('/api/admin/expiry/process', adminAuth, async (req, res) => {
+  try {
+    const result = await expiryService.processExpiries();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Error processing expiries:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : String(error),

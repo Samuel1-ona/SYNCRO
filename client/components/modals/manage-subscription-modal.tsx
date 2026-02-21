@@ -104,7 +104,9 @@ export default function ManageSubscriptionModal({
                       ? "bg-[#FFD166]/20 text-[#FFD166]"
                       : subscription.status === "cancelled"
                         ? "bg-[#E86A33]/20 text-[#E86A33]"
-                        : "bg-gray-500/20 text-gray-500"
+                        : subscription.status === "expired"
+                          ? "bg-red-500/20 text-red-500"
+                          : "bg-gray-500/20 text-gray-500"
                 }`}
               >
                 {subscription.status}
@@ -153,6 +155,14 @@ export default function ManageSubscriptionModal({
               <div className="mt-4 p-3 bg-[#E86A33]/10 border border-[#E86A33]/30 rounded-lg">
                 <p className="text-sm text-[#E86A33]">
                   Cancelled - Active until {new Date(subscription.activeUntil).toLocaleDateString()}
+                </p>
+              </div>
+            )}
+
+            {subscription.status === "expired" && subscription.expiredAt && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-sm text-red-500">
+                  Expired on {new Date(subscription.expiredAt).toLocaleDateString()} due to inactivity
                 </p>
               </div>
             )}

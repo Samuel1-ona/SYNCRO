@@ -1,6 +1,6 @@
-import logger from '../config/logger';
-import { supabase } from '../config/database';
-import { NotificationPayload } from '../types/reminder';
+import logger from "../config/logger";
+import { supabase } from "../config/database";
+import { NotificationPayload } from "../types/reminder";
 
 export interface BlockchainLogEntry {
   user_id: string;
@@ -18,10 +18,13 @@ export class BlockchainService {
 
   constructor() {
     this.contractAddress = process.env.SOROBAN_CONTRACT_ADDRESS || null;
-    this.networkUrl = process.env.STELLAR_NETWORK_URL || 'https://soroban-testnet.stellar.org';
-    
+    this.networkUrl =
+      process.env.STELLAR_NETWORK_URL || "https://soroban-testnet.stellar.org";
+
     if (!this.contractAddress) {
-      logger.warn('Blockchain contract address not configured. Events will be logged to database only.');
+      logger.warn(
+        "Blockchain contract address not configured. Events will be logged to database only.",
+      );
     }
   }
 
@@ -31,7 +34,7 @@ export class BlockchainService {
   async logReminderEvent(
     userId: string,
     payload: NotificationPayload,
-    deliveryChannels: string[]
+    deliveryChannels: string[],
   ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
     const eventData = {
       subscriptionId: payload.subscription.id,
@@ -48,40 +51,40 @@ export class BlockchainService {
     // First, log to database
     try {
       const { data: dbLog, error: dbError } = await supabase
-        .from('blockchain_logs')
+        .from("blockchain_logs")
         .insert({
           user_id: userId,
-          event_type: 'reminder_sent',
+          event_type: "reminder_sent",
           event_data: eventData,
-          status: 'pending',
+          status: "pending",
         })
         .select()
         .single();
 
       if (dbError) {
-        logger.error('Failed to log event to database:', dbError);
+        logger.error("Failed to log event to database:", dbError);
         throw dbError;
       }
 
-      logger.info('Event logged to database', { logId: dbLog.id });
+      logger.info("Event logged to database", { logId: dbLog.id });
 
       // If contract address is configured, attempt to write to blockchain
       if (this.contractAddress) {
         try {
           const result = await this.writeToBlockchain(eventData);
-          
+
           // Update database log with transaction hash
           if (result.transactionHash) {
             await supabase
-              .from('blockchain_logs')
+              .from("blockchain_logs")
               .update({
                 transaction_hash: result.transactionHash,
-                status: 'confirmed',
+                status: "confirmed",
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', dbLog.id);
+              .eq("id", dbLog.id);
 
-            logger.info('Event written to blockchain', {
+            logger.info("Event written to blockchain", {
               logId: dbLog.id,
               transactionHash: result.transactionHash,
             });
@@ -98,17 +101,17 @@ export class BlockchainService {
               ? blockchainError.message
               : String(blockchainError);
 
-          logger.error('Failed to write to blockchain:', errorMessage);
+          logger.error("Failed to write to blockchain:", errorMessage);
 
           // Update database log with error
           await supabase
-            .from('blockchain_logs')
+            .from("blockchain_logs")
             .update({
-              status: 'failed',
+              status: "failed",
               error_message: errorMessage,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', dbLog.id);
+            .eq("id", dbLog.id);
 
           // Still return success since database logging succeeded
           return {
@@ -125,7 +128,7 @@ export class BlockchainService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      logger.error('Failed to log reminder event:', errorMessage);
+      logger.error("Failed to log reminder event:", errorMessage);
       return {
         success: false,
         error: errorMessage,
@@ -138,7 +141,7 @@ export class BlockchainService {
    * This is a placeholder implementation - actual implementation depends on your Soroban contract
    */
   private async writeToBlockchain(
-    eventData: Record<string, any>
+    eventData: Record<string, any>,
   ): Promise<{ transactionHash: string }> {
     // TODO: Implement actual Soroban contract interaction
     // This would typically use @stellar/stellar-sdk or a Soroban SDK
@@ -151,12 +154,14 @@ export class BlockchainService {
     // 5. Wait for confirmation
     // 6. Return transaction hash
 
-    logger.info('Blockchain write not fully implemented. Using mock transaction hash.');
-    
+    logger.info(
+      "Blockchain write not fully implemented. Using mock transaction hash.",
+    );
+
     // For now, return a mock transaction hash
     // In production, implement actual Soroban contract interaction
     return {
-      transactionHash: `0x${Buffer.from(JSON.stringify(eventData)).toString('hex').slice(0, 64)}`,
+      transactionHash: `0x${Buffer.from(JSON.stringify(eventData)).toString("hex").slice(0, 64)}`,
     };
   }
 
@@ -165,14 +170,14 @@ export class BlockchainService {
    */
   async getUserLogs(userId: string, limit: number = 100) {
     const { data, error } = await supabase
-      .from('blockchain_logs')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+      .from("blockchain_logs")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
       .limit(limit);
 
     if (error) {
-      logger.error('Failed to fetch blockchain logs:', error);
+      logger.error("Failed to fetch blockchain logs:", error);
       throw error;
     }
 
@@ -186,8 +191,8 @@ export class BlockchainService {
   async syncSubscription(
     userId: string,
     subscriptionId: string,
-    operation: 'create' | 'update' | 'delete',
-    subscriptionData: any
+    operation: "create" | "update" | "delete" | "cancel",
+    subscriptionData: any,
   ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
     const eventData = {
       subscriptionId,
@@ -202,22 +207,22 @@ export class BlockchainService {
     // First, log to database
     try {
       const { data: dbLog, error: dbError } = await supabase
-        .from('blockchain_logs')
+        .from("blockchain_logs")
         .insert({
           user_id: userId,
           event_type: `subscription_${operation}`,
           event_data: eventData,
-          status: 'pending',
+          status: "pending",
         })
         .select()
         .single();
 
       if (dbError) {
-        logger.error('Failed to log subscription event to database:', dbError);
+        logger.error("Failed to log subscription event to database:", dbError);
         throw dbError;
       }
 
-      logger.info('Subscription event logged to database', {
+      logger.info("Subscription event logged to database", {
         logId: dbLog.id,
         operation,
         subscriptionId,
@@ -228,21 +233,21 @@ export class BlockchainService {
         try {
           const result = await this.writeSubscriptionToBlockchain(
             operation,
-            eventData
+            eventData,
           );
 
           // Update database log with transaction hash
           if (result.transactionHash) {
             await supabase
-              .from('blockchain_logs')
+              .from("blockchain_logs")
               .update({
                 transaction_hash: result.transactionHash,
-                status: 'confirmed',
+                status: "confirmed",
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', dbLog.id);
+              .eq("id", dbLog.id);
 
-            logger.info('Subscription event written to blockchain', {
+            logger.info("Subscription event written to blockchain", {
               logId: dbLog.id,
               transactionHash: result.transactionHash,
               operation,
@@ -260,17 +265,20 @@ export class BlockchainService {
               ? blockchainError.message
               : String(blockchainError);
 
-          logger.error('Failed to write subscription to blockchain:', errorMessage);
+          logger.error(
+            "Failed to write subscription to blockchain:",
+            errorMessage,
+          );
 
           // Update database log with error
           await supabase
-            .from('blockchain_logs')
+            .from("blockchain_logs")
             .update({
-              status: 'failed',
+              status: "failed",
               error_message: errorMessage,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', dbLog.id);
+            .eq("id", dbLog.id);
 
           // Still return success since database logging succeeded
           return {
@@ -287,7 +295,7 @@ export class BlockchainService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      logger.error('Failed to sync subscription event:', errorMessage);
+      logger.error("Failed to sync subscription event:", errorMessage);
       return {
         success: false,
         error: errorMessage,
@@ -300,8 +308,8 @@ export class BlockchainService {
    * This is a placeholder implementation - actual implementation depends on your Soroban contract
    */
   private async writeSubscriptionToBlockchain(
-    operation: 'create' | 'update' | 'delete',
-    eventData: Record<string, any>
+    operation: "create" | "update" | "delete" | "cancel",
+    eventData: Record<string, any>,
   ): Promise<{ transactionHash: string }> {
     // TODO: Implement actual Soroban contract interaction
     // This would typically use @stellar/stellar-sdk or a Soroban SDK
@@ -313,22 +321,32 @@ export class BlockchainService {
     //    - create: contract.createSubscription(subscriptionData)
     //    - update: contract.updateSubscription(subscriptionId, updates)
     //    - delete: contract.deleteSubscription(subscriptionId)
+    //    - cancel: contract.cancelSubscription(subscriptionId)
     // 4. Submit transaction
     // 5. Wait for confirmation
     // 6. Return transaction hash
 
-    logger.info('Blockchain write not fully implemented. Using mock transaction hash.', {
-      operation,
-    });
+    logger.info(
+      "Blockchain write not fully implemented. Using mock transaction hash.",
+      {
+        operation,
+      },
+    );
 
     // For now, return a mock transaction hash
     // In production, implement actual Soroban contract interaction
-    const operationPrefix = operation === 'create' ? 'c' : operation === 'update' ? 'u' : 'd';
+    const operationPrefix =
+      operation === "create"
+        ? "c"
+        : operation === "update"
+          ? "u"
+          : operation === "delete"
+            ? "d"
+            : "x"; // 'x' for cancel
     return {
-      transactionHash: `${operationPrefix}x${Buffer.from(JSON.stringify(eventData)).toString('hex').slice(0, 62)}`,
+      transactionHash: `${operationPrefix}x${Buffer.from(JSON.stringify(eventData)).toString("hex").slice(0, 62)}`,
     };
   }
 }
 
 export const blockchainService = new BlockchainService();
-

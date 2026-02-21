@@ -34,6 +34,7 @@ pub enum SubscriptionState {
     Active,
     Retrying,
     Failed,
+    Cancelled,
 }
 
 /// Core subscription data stored on-chain
@@ -139,6 +140,32 @@ impl SubscriptionRenewalContract {
             last_attempt_ledger: 0,
         };
         env.storage().persistent().set(&key, &data);
+    }
+
+    /// Explicitly cancel a subscription
+    pub fn cancel_sub(env: Env, sub_id: u64) {
+        let key = sub_id;
+        let mut data: SubscriptionData = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("Subscription not found");
+
+        data.owner.require_auth();
+
+        if data.state == SubscriptionState::Cancelled {
+            panic!("Subscription already cancelled");
+        }
+
+        data.state = SubscriptionState::Cancelled;
+        env.storage().persistent().set(&key, &data);
+
+        // Emit state transition event
+        StateTransition {
+            sub_id,
+            new_state: SubscriptionState::Cancelled,
+        }
+        .publish(&env);
     }
 
     // ── Approval management ───────────────────────────────────────

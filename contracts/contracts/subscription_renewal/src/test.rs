@@ -413,3 +413,41 @@ fn test_multiple_approvals_for_same_subscription() {
     let result = client.renew(&sub_id, &2, &1500, &3, &10, &true);
     assert!(result);
 }
+
+#[test]
+fn test_cancel_sub() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 600;
+
+    client.init_sub(&user, &sub_id);
+    
+    // Cancel subscription
+    client.cancel_sub(&sub_id);
+
+    let data = client.get_sub(&sub_id);
+    assert_eq!(data.state, SubscriptionState::Cancelled);
+}
+
+#[test]
+#[should_panic(expected = "Subscription already cancelled")]
+fn test_cannot_cancel_twice() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 601;
+
+    client.init_sub(&user, &sub_id);
+    
+    client.cancel_sub(&sub_id);
+    client.cancel_sub(&sub_id);
+}
+
+#[test]
+#[should_panic(expected = "Subscription not found")]
+fn test_cancel_non_existent_sub() {
+    let (_env, client, _admin) = setup();
+    client.cancel_sub(&999);
+}
+
