@@ -18,7 +18,7 @@
               "function_name": "approve_renewal",
               "args": [
                 {
-                  "u64": "999"
+                  "u64": "707"
                 },
                 {
                   "u64": "1"
@@ -27,7 +27,7 @@
                   "i128": "1000"
                 },
                 {
-                  "u32": 100
+                  "u32": 200
                 }
               ]
             }
@@ -36,6 +36,7 @@
         }
       ]
     ],
+    [],
     [],
     [],
     []
@@ -55,7 +56,7 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": {
-              "u64": "999"
+              "u64": "707"
             },
             "durability": "persistent"
           }
@@ -68,7 +69,7 @@
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
                 "key": {
-                  "u64": "999"
+                  "u64": "707"
                 },
                 "durability": "persistent",
                 "val": {
@@ -78,7 +79,7 @@
                         "symbol": "failure_count"
                       },
                       "val": {
-                        "u32": 0
+                        "u32": 1
                       }
                     },
                     {
@@ -104,7 +105,7 @@
                       "val": {
                         "vec": [
                           {
-                            "symbol": "Active"
+                            "symbol": "Retrying"
                           }
                         ]
                       }
@@ -137,7 +138,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "707"
                   }
                 }
               ]
@@ -167,7 +168,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "707"
                       }
                     }
                   ]
@@ -180,7 +181,7 @@
                         "symbol": "expires_at"
                       },
                       "val": {
-                        "u32": 100
+                        "u32": 200
                       }
                     },
                     {
@@ -196,7 +197,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "707"
                       }
                     },
                     {
@@ -208,55 +209,6 @@
                       }
                     }
                   ]
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          4095
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-            "key": {
-              "map": [
-                {
-                  "key": {
-                    "symbol": "sub_id"
-                  },
-                  "val": {
-                    "u64": "999"
-                  }
-                }
-              ]
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-                "key": {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "sub_id"
-                      },
-                      "val": {
-                        "u64": "999"
-                      }
-                    }
-                  ]
-                },
-                "durability": "persistent",
-                "val": {
-                  "u64": "20260315"
                 }
               }
             },

@@ -55,6 +55,7 @@ fn test_renew_blocked_when_paused() {
 
     client.init_sub(&user, &sub_id);
     client.approve_renewal(&sub_id, &1, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.set_paused(&true);
 
     // Should panic because the protocol is paused
@@ -76,6 +77,7 @@ fn test_renew_works_after_unpause() {
     client.set_paused(&false);
 
     // Should succeed now
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &20260101, &true);
     assert!(result);
 }
@@ -100,6 +102,7 @@ fn test_renewal_success() {
     client.init_sub(&user, &sub_id);
     client.approve_renewal(&sub_id, &1, &1000, &100);
 
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &20260115, &true);
     assert!(result);
 
@@ -121,6 +124,7 @@ fn test_retry_logic() {
 
     // First failure (cycle_id same for retries — allowed because failure doesn't store cycle)
     client.approve_renewal(&sub_id, &1, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &max_retries, &cooldown, &20260201, &false);
     assert!(!result);
 
@@ -135,6 +139,7 @@ fn test_retry_logic() {
 
     // renewal attempt but fail again (ledger 100)
     client.approve_renewal(&sub_id, &2, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &2, &500, &max_retries, &cooldown, &20260201, &false);
 
     // Advance past cooldown
@@ -144,6 +149,7 @@ fn test_retry_logic() {
 
     // Third failure (count becomes 3 > max_retries 2) -> Should fail
     client.approve_renewal(&sub_id, &3, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &3, &500, &max_retries, &cooldown, &20260201, &false);
 
     let data = client.get_sub(&sub_id);
@@ -163,10 +169,12 @@ fn test_cooldown_enforcement() {
 
     // Fail once
     client.approve_renewal(&sub_id, &1, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &1, &500, &3, &10, &20260301, &false);
 
     // Try again immediately (cooldown not met)
     client.approve_renewal(&sub_id, &2, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &2, &500, &3, &10, &20260301, &false);
 }
 
@@ -181,6 +189,7 @@ fn test_event_emission_on_success() {
     client.approve_renewal(&sub_id, &1, &1000, &100);
 
     // Successful renewal should emit RenewalSuccess event
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &20260315, &true);
     assert!(result);
 
@@ -202,6 +211,7 @@ fn test_zero_max_retries() {
     client.approve_renewal(&sub_id, &1, &1000, &100);
 
     // First failure with max_retries = 0 should immediately fail
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &max_retries, &10, &20260401, &false);
     assert!(!result);
 
@@ -223,6 +233,7 @@ fn test_multiple_failures_then_success() {
 
     // First failure
     client.approve_renewal(&sub_id, &1, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &1, &500, &max_retries, &cooldown, &20260501, &false);
     let data = client.get_sub(&sub_id);
     assert_eq!(data.state, SubscriptionState::Retrying);
@@ -235,6 +246,7 @@ fn test_multiple_failures_then_success() {
 
     // Second failure
     client.approve_renewal(&sub_id, &2, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &2, &500, &max_retries, &cooldown, &20260501, &false);
     let data = client.get_sub(&sub_id);
     assert_eq!(data.state, SubscriptionState::Retrying);
@@ -247,6 +259,7 @@ fn test_multiple_failures_then_success() {
 
     // Now succeed - should reset failure count and return to Active
     client.approve_renewal(&sub_id, &3, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &3, &500, &max_retries, &cooldown, &20260501, &true);
     assert!(result);
 
@@ -269,6 +282,7 @@ fn test_cannot_renew_failed_subscription() {
 
     // Fail twice to reach Failed state
     client.approve_renewal(&sub_id, &1, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &1, &500, &max_retries, &cooldown, &20260601, &false);
 
     env.ledger().with_mut(|li| {
@@ -276,6 +290,7 @@ fn test_cannot_renew_failed_subscription() {
     });
 
     client.approve_renewal(&sub_id, &2, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &2, &500, &max_retries, &cooldown, &20260601, &false);
 
     let data = client.get_sub(&sub_id);
@@ -288,6 +303,7 @@ fn test_cannot_renew_failed_subscription() {
 
     // Try to renew a FAILED subscription - should panic
     client.approve_renewal(&sub_id, &3, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &3, &500, &max_retries, &cooldown, &20260701, &true);
 }
 
@@ -307,6 +323,7 @@ fn test_approval_required_for_renewal() {
     client.approve_renewal(&sub_id, &approval_id, &1000, &100);
 
     // Renew with valid approval
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &approval_id, &500, &3, &10, &20260801, &true);
     assert!(result);
 }
@@ -322,6 +339,7 @@ fn test_renewal_without_approval_fails() {
     client.init_sub(&user, &sub_id);
 
     // Try to renew without creating approval
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &999, &500, &3, &10, &20260901, &true);
 }
 
@@ -338,6 +356,7 @@ fn test_approval_cannot_be_reused() {
     client.approve_renewal(&sub_id, &approval_id, &1000, &100);
 
     // First use - should succeed
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &approval_id, &500, &3, &10, &20261001, &true);
 
     env.ledger().with_mut(|li| {
@@ -345,6 +364,7 @@ fn test_approval_cannot_be_reused() {
     });
 
     // Second use - should fail (already used) — use different cycle_id to bypass cycle guard
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &approval_id, &500, &3, &10, &20261101, &true);
 }
 
@@ -368,6 +388,7 @@ fn test_expired_approval_rejected() {
     });
 
     // Try to use expired approval
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &approval_id, &500, &3, &10, &20261201, &true);
 }
 
@@ -386,6 +407,7 @@ fn test_amount_exceeds_max_spend() {
     client.approve_renewal(&sub_id, &approval_id, &1000, &100);
 
     // Try to renew with amount > max_spend
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &approval_id, &1500, &3, &10, &20270101, &true);
 }
 
@@ -403,6 +425,7 @@ fn test_multiple_approvals_for_same_subscription() {
     client.approve_renewal(&sub_id, &2, &2000, &200);
 
     // Use first approval
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &1, &500, &3, &10, &20270201, &true);
 
     env.ledger().with_mut(|li| {
@@ -410,6 +433,7 @@ fn test_multiple_approvals_for_same_subscription() {
     });
 
     // Use second approval — different cycle_id since first succeeded
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &2, &1500, &3, &10, &20270301, &true);
     assert!(result);
 }
@@ -429,11 +453,13 @@ fn test_duplicate_cycle_rejected_after_success() {
 
     // First renewal succeeds — stores cycle_id
     client.approve_renewal(&sub_id, &1, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &cycle_id, &true);
     assert!(result);
 
     // Second renewal with same cycle_id — should panic
     client.approve_renewal(&sub_id, &2, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     client.renew(&sub_id, &2, &500, &3, &10, &cycle_id, &true);
 }
 
@@ -449,6 +475,7 @@ fn test_retry_same_cycle_allowed_after_failure() {
 
     // First attempt fails — does NOT store cycle_id
     client.approve_renewal(&sub_id, &1, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &cycle_id, &false);
     assert!(!result);
 
@@ -459,6 +486,7 @@ fn test_retry_same_cycle_allowed_after_failure() {
 
     // Retry with same cycle_id — should succeed because failure didn't record cycle
     client.approve_renewal(&sub_id, &2, &1000, &200);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &2, &500, &3, &10, &cycle_id, &true);
     assert!(result);
 }
@@ -474,11 +502,13 @@ fn test_different_cycle_allowed_after_success() {
 
     // First cycle succeeds
     client.approve_renewal(&sub_id, &1, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &20260315, &true);
     assert!(result);
 
     // Different cycle_id — should succeed
     client.approve_renewal(&sub_id, &2, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &2, &500, &3, &10, &20260415, &true);
     assert!(result);
 }
@@ -494,6 +524,7 @@ fn test_first_renewal_always_allowed() {
 
     // First renewal ever — no stored cycle, guard passes
     client.approve_renewal(&sub_id, &1, &1000, &100);
+    client.acquire_renewal_lock(&sub_id, &200);
     let result = client.renew(&sub_id, &1, &500, &3, &10, &20260101, &true);
     assert!(result);
 
@@ -509,7 +540,7 @@ fn test_cancel_sub() {
     let sub_id = 600;
 
     client.init_sub(&user, &sub_id);
-    
+
     // Cancel subscription
     client.cancel_sub(&sub_id);
 
@@ -526,7 +557,7 @@ fn test_cannot_cancel_twice() {
     let sub_id = 601;
 
     client.init_sub(&user, &sub_id);
-    
+
     client.cancel_sub(&sub_id);
     client.cancel_sub(&sub_id);
 }
@@ -538,3 +569,165 @@ fn test_cancel_non_existent_sub() {
     client.cancel_sub(&999);
 }
 
+// ── Renewal lock tests ──────────────────────────────────────────
+
+#[test]
+fn test_acquire_renewal_lock() {
+    let (_env, client, _admin) = setup();
+
+    let sub_id = 700;
+
+    client.acquire_renewal_lock(&sub_id, &200);
+
+    let lock = client.get_renewal_lock(&sub_id);
+    assert!(lock.is_some());
+    let lock_data = lock.unwrap();
+    assert_eq!(lock_data.locked_at, 0); // default ledger
+    assert_eq!(lock_data.lock_timeout, 200);
+}
+
+#[test]
+#[should_panic(expected = "Renewal lock active")]
+fn test_lock_prevents_concurrent_acquisition() {
+    let (_env, client, _admin) = setup();
+
+    let sub_id = 701;
+
+    client.acquire_renewal_lock(&sub_id, &200);
+    // Second acquire should panic
+    client.acquire_renewal_lock(&sub_id, &200);
+}
+
+#[test]
+fn test_lock_auto_expires_and_reacquirable() {
+    let (env, client, _admin) = setup();
+
+    let sub_id = 702;
+
+    client.acquire_renewal_lock(&sub_id, &50);
+
+    // Advance ledger past lock timeout
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 60;
+    });
+
+    // Should succeed — old lock expired
+    client.acquire_renewal_lock(&sub_id, &200);
+
+    let lock = client.get_renewal_lock(&sub_id);
+    assert!(lock.is_some());
+    let lock_data = lock.unwrap();
+    assert_eq!(lock_data.locked_at, 60);
+    assert_eq!(lock_data.lock_timeout, 200);
+}
+
+#[test]
+fn test_release_renewal_lock() {
+    let (_env, client, _admin) = setup();
+
+    let sub_id = 703;
+
+    client.acquire_renewal_lock(&sub_id, &200);
+    assert!(client.get_renewal_lock(&sub_id).is_some());
+
+    client.release_renewal_lock(&sub_id);
+    assert!(client.get_renewal_lock(&sub_id).is_none());
+}
+
+#[test]
+#[should_panic(expected = "No renewal lock to release")]
+fn test_release_nonexistent_lock_panics() {
+    let (_env, client, _admin) = setup();
+
+    let sub_id = 704;
+    client.release_renewal_lock(&sub_id);
+}
+
+#[test]
+#[should_panic(expected = "Renewal lock required")]
+fn test_renew_without_lock_panics() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 705;
+
+    client.init_sub(&user, &sub_id);
+    client.approve_renewal(&sub_id, &1, &1000, &100);
+
+    // Renew without acquiring lock — should panic
+    client.renew(&sub_id, &1, &500, &3, &10, &20260101, &true);
+}
+
+#[test]
+fn test_renew_with_lock_succeeds_and_auto_releases() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 706;
+
+    client.init_sub(&user, &sub_id);
+    client.approve_renewal(&sub_id, &1, &1000, &100);
+
+    client.acquire_renewal_lock(&sub_id, &200);
+    assert!(client.get_renewal_lock(&sub_id).is_some());
+
+    let result = client.renew(&sub_id, &1, &500, &3, &10, &20260101, &true);
+    assert!(result);
+
+    // Lock should be auto-released after renew
+    assert!(client.get_renewal_lock(&sub_id).is_none());
+}
+
+#[test]
+fn test_renew_failure_also_releases_lock() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 707;
+
+    client.init_sub(&user, &sub_id);
+    client.approve_renewal(&sub_id, &1, &1000, &200);
+
+    client.acquire_renewal_lock(&sub_id, &200);
+    assert!(client.get_renewal_lock(&sub_id).is_some());
+
+    let result = client.renew(&sub_id, &1, &500, &3, &10, &20260101, &false);
+    assert!(!result);
+
+    // Lock should be auto-released even after failure
+    assert!(client.get_renewal_lock(&sub_id).is_none());
+}
+
+#[test]
+#[should_panic(expected = "Renewal lock expired")]
+fn test_renew_with_expired_lock_panics() {
+    let (env, client, _admin) = setup();
+
+    let user = Address::generate(&env);
+    let sub_id = 708;
+
+    client.init_sub(&user, &sub_id);
+    client.approve_renewal(&sub_id, &1, &1000, &200);
+
+    client.acquire_renewal_lock(&sub_id, &50);
+
+    // Advance ledger past lock timeout
+    env.ledger().with_mut(|li| {
+        li.sequence_number = 60;
+    });
+
+    // Renew with expired lock — should panic
+    client.renew(&sub_id, &1, &500, &3, &10, &20260101, &true);
+}
+
+#[test]
+#[should_panic(expected = "Protocol is paused")]
+fn test_acquire_lock_blocked_when_paused() {
+    let (_env, client, _admin) = setup();
+
+    let sub_id = 709;
+
+    client.set_paused(&true);
+    // Should panic because protocol is paused
+    client.acquire_renewal_lock(&sub_id, &200);
+}

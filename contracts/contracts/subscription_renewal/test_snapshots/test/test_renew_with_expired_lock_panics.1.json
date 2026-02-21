@@ -18,7 +18,7 @@
               "function_name": "approve_renewal",
               "args": [
                 {
-                  "u64": "999"
+                  "u64": "708"
                 },
                 {
                   "u64": "1"
@@ -27,7 +27,7 @@
                   "i128": "1000"
                 },
                 {
-                  "u32": 100
+                  "u32": 200
                 }
               ]
             }
@@ -37,12 +37,11 @@
       ]
     ],
     [],
-    [],
     []
   ],
   "ledger": {
     "protocol_version": 23,
-    "sequence_number": 0,
+    "sequence_number": 60,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -55,7 +54,7 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": {
-              "u64": "999"
+              "u64": "708"
             },
             "durability": "persistent"
           }
@@ -68,7 +67,7 @@
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
                 "key": {
-                  "u64": "999"
+                  "u64": "708"
                 },
                 "durability": "persistent",
                 "val": {
@@ -137,7 +136,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "708"
                   }
                 }
               ]
@@ -167,7 +166,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "708"
                       }
                     }
                   ]
@@ -180,7 +179,7 @@
                         "symbol": "expires_at"
                       },
                       "val": {
-                        "u32": 100
+                        "u32": 200
                       }
                     },
                     {
@@ -196,7 +195,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "708"
                       }
                     },
                     {
@@ -204,7 +203,7 @@
                         "symbol": "used"
                       },
                       "val": {
-                        "bool": true
+                        "bool": false
                       }
                     }
                   ]
@@ -224,10 +223,10 @@
               "map": [
                 {
                   "key": {
-                    "symbol": "sub_id"
+                    "symbol": "lock_sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "708"
                   }
                 }
               ]
@@ -246,17 +245,34 @@
                   "map": [
                     {
                       "key": {
-                        "symbol": "sub_id"
+                        "symbol": "lock_sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "708"
                       }
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "u64": "20260315"
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "lock_timeout"
+                      },
+                      "val": {
+                        "u32": 50
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "locked_at"
+                      },
+                      "val": {
+                        "u32": 0
+                      }
+                    }
+                  ]
                 }
               }
             },

@@ -24,6 +24,21 @@ struct CycleKey {
     sub_id: u64,
 }
 
+/// Storage key for renewal processing lock
+#[contracttype]
+#[derive(Clone)]
+struct RenewalLockKey {
+    lock_sub_id: u64,
+}
+
+/// Data stored for an active renewal lock
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RenewalLockData {
+    pub locked_at: u32,
+    pub lock_timeout: u32,
+}
+
 /// Renewal approval bound to subscription, amount, and expiration
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -100,6 +115,26 @@ pub struct DuplicateRenewalRejected {
     pub cycle_id: u64,
 }
 
+#[contractevent]
+pub struct RenewalLockAcquired {
+    pub sub_id: u64,
+    pub locked_at: u32,
+    pub lock_timeout: u32,
+}
+
+#[contractevent]
+pub struct RenewalLockReleased {
+    pub sub_id: u64,
+    pub released_at: u32,
+}
+
+#[contractevent]
+pub struct RenewalLockExpired {
+    pub sub_id: u64,
+    pub original_locked_at: u32,
+    pub expired_at: u32,
+}
+
 #[contract]
 pub struct SubscriptionRenewalContract;
 
@@ -139,6 +174,73 @@ impl SubscriptionRenewalContract {
             .instance()
             .get(&ContractKey::Paused)
             .unwrap_or(false)
+    }
+
+    // ── Renewal lock management ────────────────────────────────────
+
+    /// Acquire a processing lock for a subscription renewal.
+    /// Prevents concurrent renewal execution by multiple workers.
+    pub fn acquire_renewal_lock(env: Env, sub_id: u64, lock_timeout: u32) {
+        if Self::is_paused(env.clone()) {
+            panic!("Protocol is paused");
+        }
+
+        let lock_key = RenewalLockKey { lock_sub_id: sub_id };
+        let current_ledger = env.ledger().sequence();
+
+        if let Some(existing) = env
+            .storage()
+            .persistent()
+            .get::<RenewalLockKey, RenewalLockData>(&lock_key)
+        {
+            // Check if existing lock has expired
+            if current_ledger < existing.locked_at + existing.lock_timeout {
+                panic!("Renewal lock active");
+            }
+            // Lock expired — emit expiry event and allow re-acquisition
+            RenewalLockExpired {
+                sub_id,
+                original_locked_at: existing.locked_at,
+                expired_at: current_ledger,
+            }
+            .publish(&env);
+        }
+
+        let lock_data = RenewalLockData {
+            locked_at: current_ledger,
+            lock_timeout,
+        };
+        env.storage().persistent().set(&lock_key, &lock_data);
+
+        RenewalLockAcquired {
+            sub_id,
+            locked_at: current_ledger,
+            lock_timeout,
+        }
+        .publish(&env);
+    }
+
+    /// Release a processing lock for a subscription renewal.
+    pub fn release_renewal_lock(env: Env, sub_id: u64) {
+        let lock_key = RenewalLockKey { lock_sub_id: sub_id };
+        if !env.storage().persistent().has(&lock_key) {
+            panic!("No renewal lock to release");
+        }
+
+        let current_ledger = env.ledger().sequence();
+        env.storage().persistent().remove(&lock_key);
+
+        RenewalLockReleased {
+            sub_id,
+            released_at: current_ledger,
+        }
+        .publish(&env);
+    }
+
+    /// Query the current renewal lock for a subscription.
+    pub fn get_renewal_lock(env: Env, sub_id: u64) -> Option<RenewalLockData> {
+        let lock_key = RenewalLockKey { lock_sub_id: sub_id };
+        env.storage().persistent().get(&lock_key)
     }
 
     // ── Subscription logic ────────────────────────────────────────
@@ -300,6 +402,9 @@ impl SubscriptionRenewalContract {
             panic!("Protocol is paused");
         }
 
+        // Get current ledger early (needed for lock verification)
+        let current_ledger = env.ledger().sequence();
+
         // 2. Load subscription data
         let key = sub_id;
         let mut data: SubscriptionData = env
@@ -313,7 +418,19 @@ impl SubscriptionRenewalContract {
             panic!("Subscription is in FAILED state");
         }
 
-        // 4. Cycle guard: reject duplicate renewal for the same billing cycle
+        // 4. Verify renewal lock exists and is not expired
+        let lock_key = RenewalLockKey { lock_sub_id: sub_id };
+        let lock_data: Option<RenewalLockData> = env.storage().persistent().get(&lock_key);
+        match lock_data {
+            None => panic!("Renewal lock required"),
+            Some(ref ld) => {
+                if current_ledger >= ld.locked_at + ld.lock_timeout {
+                    panic!("Renewal lock expired");
+                }
+            }
+        }
+
+        // 5. Cycle guard: reject duplicate renewal for the same billing cycle
         let cycle_key = CycleKey { sub_id };
         let last_cycle: Option<u64> = env.storage().persistent().get(&cycle_key);
         if let Some(last) = last_cycle {
@@ -323,13 +440,12 @@ impl SubscriptionRenewalContract {
             }
         }
 
-        // 5. Check cooldown
-        let current_ledger = env.ledger().sequence();
+        // 6. Check cooldown
         if data.failure_count > 0 && current_ledger < data.last_attempt_ledger + cooldown_ledgers {
             panic!("Cooldown period active");
         }
 
-        // 6. Validate and consume approval
+        // 7. Validate and consume approval
         if !Self::consume_approval(&env, sub_id, approval_id, amount) {
             panic!("Invalid or expired approval");
         }
@@ -348,6 +464,14 @@ impl SubscriptionRenewalContract {
             RenewalSuccess {
                 sub_id,
                 owner: data.owner.clone(),
+            }
+            .publish(&env);
+
+            // Auto-release lock
+            env.storage().persistent().remove(&lock_key);
+            RenewalLockReleased {
+                sub_id,
+                released_at: current_ledger,
             }
             .publish(&env);
 
@@ -384,6 +508,15 @@ impl SubscriptionRenewalContract {
             }
 
             env.storage().persistent().set(&key, &data);
+
+            // Auto-release lock
+            env.storage().persistent().remove(&lock_key);
+            RenewalLockReleased {
+                sub_id,
+                released_at: current_ledger,
+            }
+            .publish(&env);
+
             false
         }
     }

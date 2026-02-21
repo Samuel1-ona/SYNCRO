@@ -18,7 +18,7 @@
               "function_name": "approve_renewal",
               "args": [
                 {
-                  "u64": "999"
+                  "u64": "706"
                 },
                 {
                   "u64": "1"
@@ -38,6 +38,7 @@
     ],
     [],
     [],
+    [],
     []
   ],
   "ledger": {
@@ -55,7 +56,7 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": {
-              "u64": "999"
+              "u64": "706"
             },
             "durability": "persistent"
           }
@@ -68,7 +69,7 @@
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
                 "key": {
-                  "u64": "999"
+                  "u64": "706"
                 },
                 "durability": "persistent",
                 "val": {
@@ -137,7 +138,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "706"
                   }
                 }
               ]
@@ -167,7 +168,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "706"
                       }
                     }
                   ]
@@ -196,7 +197,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "706"
                       }
                     },
                     {
@@ -227,7 +228,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "706"
                   }
                 }
               ]
@@ -249,14 +250,14 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "706"
                       }
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "u64": "20260315"
+                  "u64": "20260101"
                 }
               }
             },

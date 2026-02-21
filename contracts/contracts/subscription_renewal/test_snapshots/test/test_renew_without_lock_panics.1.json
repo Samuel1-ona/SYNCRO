@@ -18,7 +18,7 @@
               "function_name": "approve_renewal",
               "args": [
                 {
-                  "u64": "999"
+                  "u64": "705"
                 },
                 {
                   "u64": "1"
@@ -36,8 +36,6 @@
         }
       ]
     ],
-    [],
-    [],
     []
   ],
   "ledger": {
@@ -55,7 +53,7 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": {
-              "u64": "999"
+              "u64": "705"
             },
             "durability": "persistent"
           }
@@ -68,7 +66,7 @@
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
                 "key": {
-                  "u64": "999"
+                  "u64": "705"
                 },
                 "durability": "persistent",
                 "val": {
@@ -137,7 +135,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "999"
+                    "u64": "705"
                   }
                 }
               ]
@@ -167,7 +165,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "705"
                       }
                     }
                   ]
@@ -196,7 +194,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "999"
+                        "u64": "705"
                       }
                     },
                     {
@@ -204,59 +202,10 @@
                         "symbol": "used"
                       },
                       "val": {
-                        "bool": true
+                        "bool": false
                       }
                     }
                   ]
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          4095
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-            "key": {
-              "map": [
-                {
-                  "key": {
-                    "symbol": "sub_id"
-                  },
-                  "val": {
-                    "u64": "999"
-                  }
-                }
-              ]
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-                "key": {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "sub_id"
-                      },
-                      "val": {
-                        "u64": "999"
-                      }
-                    }
-                  ]
-                },
-                "durability": "persistent",
-                "val": {
-                  "u64": "20260315"
                 }
               }
             },
