@@ -51,8 +51,12 @@ export class ReorgHandler {
       case 'renewal_success':
         await supabase
           .from('subscriptions')
-          .update({ status: 'pending' })
+          .update({ status: 'pending', last_renewal_cycle_id: null })
           .eq('blockchain_sub_id', sub_id);
+        break;
+
+      case 'duplicate_renewal_rejected':
+        // No-op: rejection didn't change state, rollback is a no-op
         break;
 
       case 'state_transition':
