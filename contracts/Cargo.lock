@@ -1462,6 +1462,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "subscription_logging"
+version = "0.0.1"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "subscription_renewal"
 version = "0.0.1"
 dependencies = [

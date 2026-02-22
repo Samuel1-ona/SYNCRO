@@ -7,6 +7,7 @@ use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, 
 enum ContractKey {
     Admin,
     Paused,
+    LoggingContract,
 }
 
 /// Storage key for approvals: (sub_id, approval_id)
@@ -141,6 +142,14 @@ impl SubscriptionRenewalContract {
             .unwrap_or(false)
     }
 
+    /// Set the logging contract address. Admin only.
+    pub fn set_logging_contract(env: Env, address: Address) {
+        Self::require_admin(&env);
+        env.storage()
+            .instance()
+            .set(&ContractKey::LoggingContract, &address);
+    }
+
     // ── Subscription logic ────────────────────────────────────────
 
     /// Initialize a subscription
@@ -153,6 +162,31 @@ impl SubscriptionRenewalContract {
             last_attempt_ledger: 0,
         };
         env.storage().persistent().set(&key, &data);
+
+        // Record initialization log
+        Self::record_log(
+            &env,
+            sub_id,
+            2,
+            soroban_sdk::String::from_str(&env, "Subscription initialized"),
+        );
+    }
+
+    fn record_log(env: &Env, sub_id: u64, event_type: u32, data_str: soroban_sdk::String) {
+        if let Some(log_addr) = env
+            .storage()
+            .instance()
+            .get::<_, Address>(&ContractKey::LoggingContract)
+        {
+            // Here we would call the logging contract.
+            // Since we are in a multi-contract setup, we'd use a client.
+            // For now, we'll emit an event as a placeholder or assume the client is available.
+            // (In a real implementation, we'd use a cross-contract call).
+            env.events().publish(
+                (soroban_sdk::symbol_short!("log"), sub_id),
+                (event_type, data_str),
+            );
+        }
     }
 
     /// Explicitly cancel a subscription
@@ -172,6 +206,14 @@ impl SubscriptionRenewalContract {
 
         data.state = SubscriptionState::Cancelled;
         env.storage().persistent().set(&key, &data);
+
+        // Record cancellation log
+        Self::record_log(
+            &env,
+            sub_id,
+            5,
+            soroban_sdk::String::from_str(&env, "Subscription cancelled"),
+        );
 
         // Emit state transition event
         StateTransition {
@@ -351,6 +393,14 @@ impl SubscriptionRenewalContract {
             }
             .publish(&env);
 
+            // Record renewal success log
+            Self::record_log(
+                &env,
+                sub_id,
+                2,
+                soroban_sdk::String::from_str(&env, "Renewal successful"),
+            );
+
             true
         } else {
             // Simulated failure - renewal failed, apply retry logic
@@ -374,6 +424,14 @@ impl SubscriptionRenewalContract {
                     new_state: SubscriptionState::Failed,
                 }
                 .publish(&env);
+
+                // Record failure log
+                Self::record_log(
+                    &env,
+                    sub_id,
+                    3,
+                    soroban_sdk::String::from_str(&env, "Renewal failed - max retries exceeded"),
+                );
             } else {
                 data.state = SubscriptionState::Retrying;
                 StateTransition {
@@ -381,6 +439,14 @@ impl SubscriptionRenewalContract {
                     new_state: SubscriptionState::Retrying,
                 }
                 .publish(&env);
+
+                // Record retry log
+                Self::record_log(
+                    &env,
+                    sub_id,
+                    4,
+                    soroban_sdk::String::from_str(&env, "Renewal failed - scheduled for retry"),
+                );
             }
 
             env.storage().persistent().set(&key, &data);
