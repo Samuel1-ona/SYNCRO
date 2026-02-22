@@ -18,13 +18,13 @@
               "function_name": "approve_renewal",
               "args": [
                 {
-                  "u64": "504"
+                  "u64": "700"
                 },
                 {
-                  "u64": "4"
+                  "u64": "1"
                 },
                 {
-                  "i128": "1000"
+                  "i128": "2000"
                 },
                 {
                   "u32": 100
@@ -53,7 +53,7 @@
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": {
-              "u64": "504"
+              "u64": "700"
             },
             "durability": "persistent"
           }
@@ -66,7 +66,7 @@
                 "ext": "v0",
                 "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
                 "key": {
-                  "u64": "504"
+                  "u64": "700"
                 },
                 "durability": "persistent",
                 "val": {
@@ -167,7 +167,7 @@
                     "symbol": "approval_id"
                   },
                   "val": {
-                    "u64": "4"
+                    "u64": "1"
                   }
                 },
                 {
@@ -175,7 +175,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "504"
+                    "u64": "700"
                   }
                 }
               ]
@@ -197,7 +197,7 @@
                         "symbol": "approval_id"
                       },
                       "val": {
-                        "u64": "4"
+                        "u64": "1"
                       }
                     },
                     {
@@ -205,7 +205,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "504"
+                        "u64": "700"
                       }
                     }
                   ]
@@ -226,7 +226,7 @@
                         "symbol": "max_spend"
                       },
                       "val": {
-                        "i128": "1000"
+                        "i128": "2000"
                       }
                     },
                     {
@@ -234,7 +234,7 @@
                         "symbol": "sub_id"
                       },
                       "val": {
-                        "u64": "504"
+                        "u64": "700"
                       }
                     },
                     {
@@ -377,25 +377,25 @@
           "v0": {
             "topics": [
               {
-                "symbol": "approval_rejected"
+                "symbol": "spending_cap_violated"
               }
             ],
             "data": {
               "map": [
                 {
                   "key": {
-                    "symbol": "approval_id"
+                    "symbol": "amount"
                   },
                   "val": {
-                    "u64": "4"
+                    "i128": "1500"
                   }
                 },
                 {
                   "key": {
-                    "symbol": "reason"
+                    "symbol": "cap"
                   },
                   "val": {
-                    "u32": 3
+                    "i128": "1000"
                   }
                 },
                 {
@@ -403,7 +403,7 @@
                     "symbol": "sub_id"
                   },
                   "val": {
-                    "u64": "504"
+                    "u64": "700"
                   }
                 }
               ]
