@@ -1,6 +1,7 @@
 import logger from '../config/logger';
 import { supabase } from '../config/database';
 import { reorgHandler } from './reorg-handler';
+import { generateCycleId } from '../utils/cycle-id';
 
 interface ContractEvent {
   type: string;
@@ -29,7 +30,7 @@ export class EventListener {
   constructor() {
     this.contractId = process.env.SOROBAN_CONTRACT_ADDRESS || '';
     this.rpcUrl = process.env.STELLAR_NETWORK_URL || 'https://soroban-testnet.stellar.org';
-    
+
     if (!this.contractId) {
       throw new Error('SOROBAN_CONTRACT_ADDRESS not configured');
     }
@@ -37,11 +38,11 @@ export class EventListener {
 
   async start() {
     if (this.isRunning) return;
-    
+
     this.isRunning = true;
     this.lastProcessedLedger = await this.getLastProcessedLedger();
     logger.info('Event listener started', { lastLedger: this.lastProcessedLedger });
-    
+
     this.poll();
   }
 
@@ -63,19 +64,19 @@ export class EventListener {
 
   private async fetchAndProcessEvents() {
     const currentLedger = await this.getCurrentLedger();
-    
+
     // Check for reorg
     if (currentLedger < this.lastProcessedLedger) {
       await reorgHandler.handleReorg(currentLedger, this.lastProcessedLedger);
       this.lastProcessedLedger = await this.getLastProcessedLedger();
     }
-    
+
     const events = await this.fetchEvents(this.lastProcessedLedger + 1);
-    
+
     if (events.length === 0) return;
 
     const processed = await this.processEvents(events);
-    
+
     if (processed.length > 0) {
       await this.saveEvents(processed);
       this.lastProcessedLedger = Math.max(...events.map(e => e.ledger));
@@ -98,7 +99,7 @@ export class EventListener {
       }),
     });
 
-    const data = await response.json();
+    const data: any = await response.json();
     return data.result?.events || [];
   }
 
@@ -123,6 +124,10 @@ export class EventListener {
       StateTransition: this.handleStateTransition.bind(this),
       ApprovalCreated: this.handleApprovalCreated.bind(this),
       ApprovalRejected: this.handleApprovalRejected.bind(this),
+      DuplicateRenewalRejected: this.handleDuplicateRenewalRejected.bind(this),
+      RenewalLockAcquired: this.handleRenewalLockAcquired.bind(this),
+      RenewalLockReleased: this.handleRenewalLockReleased.bind(this),
+      RenewalLockExpired: this.handleRenewalLockExpired.bind(this),
     };
 
     return handlers[eventType];
@@ -130,14 +135,27 @@ export class EventListener {
 
   private async handleRenewalSuccess(event: ContractEvent): Promise<ProcessedEvent | null> {
     const { sub_id } = event.value;
-    
+
+    // Fetch the subscription to get next_billing_date for cycle_id
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('next_billing_date')
+      .eq('blockchain_sub_id', sub_id)
+      .single();
+
+    const updateData: Record<string, any> = {
+      status: 'active',
+      last_payment_date: new Date().toISOString(),
+      failure_count: 0,
+    };
+
+    if (sub?.next_billing_date) {
+      updateData.last_renewal_cycle_id = generateCycleId(sub.next_billing_date);
+    }
+
     await supabase
       .from('subscriptions')
-      .update({ 
-        status: 'active',
-        last_payment_date: new Date().toISOString(),
-        failure_count: 0,
-      })
+      .update(updateData)
       .eq('blockchain_sub_id', sub_id);
 
     return {
@@ -151,10 +169,10 @@ export class EventListener {
 
   private async handleRenewalFailed(event: ContractEvent): Promise<ProcessedEvent | null> {
     const { sub_id, failure_count } = event.value;
-    
+
     await supabase
       .from('subscriptions')
-      .update({ 
+      .update({
         status: 'retrying',
         failure_count,
       })
@@ -171,7 +189,7 @@ export class EventListener {
 
   private async handleStateTransition(event: ContractEvent): Promise<ProcessedEvent | null> {
     const { sub_id, new_state } = event.value;
-    
+
     const statusMap: Record<string, string> = {
       Active: 'active',
       Retrying: 'retrying',
@@ -194,7 +212,7 @@ export class EventListener {
 
   private async handleApprovalCreated(event: ContractEvent): Promise<ProcessedEvent | null> {
     const { sub_id, approval_id, max_spend, expires_at } = event.value;
-    
+
     await supabase
       .from('renewal_approvals')
       .insert({
@@ -216,10 +234,10 @@ export class EventListener {
 
   private async handleApprovalRejected(event: ContractEvent): Promise<ProcessedEvent | null> {
     const { sub_id, approval_id, reason } = event.value;
-    
+
     await supabase
       .from('renewal_approvals')
-      .update({ 
+      .update({
         rejected: true,
         rejection_reason: reason,
       })
@@ -229,6 +247,62 @@ export class EventListener {
     return {
       sub_id,
       event_type: 'approval_rejected',
+      ledger: event.ledger,
+      tx_hash: event.txHash,
+      event_data: event.value,
+    };
+  }
+
+  private async handleDuplicateRenewalRejected(event: ContractEvent): Promise<ProcessedEvent | null> {
+    const { sub_id, cycle_id } = event.value;
+
+    logger.warn('Duplicate renewal rejected by contract', { sub_id, cycle_id });
+
+    return {
+      sub_id,
+      event_type: 'duplicate_renewal_rejected',
+      ledger: event.ledger,
+      tx_hash: event.txHash,
+      event_data: event.value,
+    };
+  }
+
+  private async handleRenewalLockAcquired(event: ContractEvent): Promise<ProcessedEvent | null> {
+    const { sub_id, locked_at, lock_timeout } = event.value;
+
+    logger.info('Renewal lock acquired on-chain', { sub_id, locked_at, lock_timeout });
+
+    return {
+      sub_id,
+      event_type: 'renewal_lock_acquired',
+      ledger: event.ledger,
+      tx_hash: event.txHash,
+      event_data: event.value,
+    };
+  }
+
+  private async handleRenewalLockReleased(event: ContractEvent): Promise<ProcessedEvent | null> {
+    const { sub_id, released_at } = event.value;
+
+    logger.info('Renewal lock released on-chain', { sub_id, released_at });
+
+    return {
+      sub_id,
+      event_type: 'renewal_lock_released',
+      ledger: event.ledger,
+      tx_hash: event.txHash,
+      event_data: event.value,
+    };
+  }
+
+  private async handleRenewalLockExpired(event: ContractEvent): Promise<ProcessedEvent | null> {
+    const { sub_id, original_locked_at, expired_at } = event.value;
+
+    logger.warn('Renewal lock expired on-chain', { sub_id, original_locked_at, expired_at });
+
+    return {
+      sub_id,
+      event_type: 'renewal_lock_expired',
       ledger: event.ledger,
       tx_hash: event.txHash,
       event_data: event.value,
@@ -277,7 +351,7 @@ export class EventListener {
       }),
     });
 
-    const data = await response.json();
+    const data: any = await response.json();
     return data.result?.sequence || 0;
   }
 

@@ -1,16 +1,19 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+// Load environment variables before importing other modules
+dotenv.config();
+
 import logger from './config/logger';
 import { schedulerService } from './services/scheduler';
 import { reminderEngine } from './services/reminder-engine';
 import subscriptionRoutes from './routes/subscriptions';
 import simulationRoutes from './routes/simulation';
+import merchantRoutes from './routes/merchants';
 import { monitoringService } from './services/monitoring-service';
+import { healthService } from './services/health-service';
 import { eventListener } from './services/event-listener';
-
-// Load environment variables
-dotenv.config();
+import { expiryService } from './services/expiry-service';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,7 +26,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Idempotency-Key, If-Match');
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -35,15 +38,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Admin access control middleware
-const adminAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const apiKey = req.headers['x-admin-api-key'];
-  if (!apiKey || apiKey !== ADMIN_API_KEY) {
-    logger.warn(`Unauthorized admin access attempt from IP: ${req.ip}`);
-    return res.status(401).json({ error: 'Unauthorized: Invalid admin API key' });
-  }
-  next();
-};
+import { adminAuth } from './middleware/admin';
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -53,6 +48,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/simulation', simulationRoutes);
+app.use('/api/merchants', merchantRoutes);
 
 // API Routes (Public/Standard)
 app.get('/api/reminders/status', (req, res) => {
@@ -85,6 +81,19 @@ app.get('/api/admin/metrics/activity', adminAuth, async (req, res) => {
     res.json(metrics);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch agent activity' });
+  }
+});
+
+// Protocol Health Monitor: unified admin health (metrics, alerts, history)
+app.get('/api/admin/health', adminAuth, async (req, res) => {
+  try {
+    const includeHistory = req.query.history !== 'false';
+    const health = await healthService.getAdminHealth(includeHistory);
+    const statusCode = health.status === 'unhealthy' ? 503 : 200;
+    res.status(statusCode).json(health);
+  } catch (error) {
+    logger.error('Error fetching admin health:', error);
+    res.status(500).json({ error: 'Failed to fetch health status' });
   }
 });
 
@@ -129,6 +138,30 @@ app.post('/api/reminders/retry', adminAuth, async (req, res) => {
   }
 });
 
+// Protocol Health Monitor: record metrics snapshot periodically (historical storage)
+const HEALTH_SNAPSHOT_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+function startHealthSnapshotInterval() {
+  setInterval(() => {
+    healthService.recordSnapshot().catch(() => {});
+  }, HEALTH_SNAPSHOT_INTERVAL_MS);
+  // Record one snapshot shortly after startup
+  setTimeout(() => healthService.recordSnapshot().catch(() => {}), 5000);
+}
+
+app.post('/api/admin/expiry/process', adminAuth, async (req, res) => {
+  try {
+    const result = await expiryService.processExpiries();
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Error processing expiries:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+
 // Start server
 const server = app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
@@ -136,7 +169,10 @@ const server = app.listen(PORT, () => {
 
   // Start scheduler
   schedulerService.start();
-  
+
+  // Start health metrics snapshot loop
+  startHealthSnapshotInterval();
+
   // Start event listener
   eventListener.start().catch(err => {
     logger.error('Failed to start event listener:', err);

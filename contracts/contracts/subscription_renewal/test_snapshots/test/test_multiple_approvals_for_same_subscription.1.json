@@ -65,6 +65,8 @@
       ]
     ],
     [],
+    [],
+    [],
     []
   ],
   "ledger": {
@@ -345,6 +347,55 @@
         {
           "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "sub_id"
+                  },
+                  "val": {
+                    "u64": "505"
+                  }
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "sub_id"
+                      },
+                      "val": {
+                        "u64": "505"
+                      }
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "u64": "20270301"
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          4095
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
             "key": "ledger_key_contract_instance",
             "durability": "persistent"
           }
@@ -508,6 +559,43 @@
                   },
                   "val": {
                     "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "sub_id"
+                  },
+                  "val": {
+                    "u64": "505"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "renewal_lock_released"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "released_at"
+                  },
+                  "val": {
+                    "u32": 20
                   }
                 },
                 {

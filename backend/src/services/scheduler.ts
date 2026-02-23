@@ -1,6 +1,8 @@
 import cron from 'node-cron';
 import logger from '../config/logger';
 import { reminderEngine } from './reminder-engine';
+import { expiryService } from './expiry-service';
+import { renewalLockService } from './renewal-lock-service';
 
 export class SchedulerService {
   private jobs: cron.ScheduledTask[] = [];
@@ -46,6 +48,30 @@ export class SchedulerService {
     });
 
     this.jobs.push(retryJob);
+
+    // Schedule expiry processing - runs daily at 2 AM UTC
+    const expiryJob = cron.schedule('0 2 * * *', async () => {
+      logger.info('Running scheduled expiry processing');
+      try {
+        await expiryService.processExpiries();
+      } catch (error) {
+        logger.error('Error in scheduled expiry processing:', error);
+      }
+    });
+
+    this.jobs.push(expiryJob);
+
+    // Schedule renewal lock cleanup - runs every 5 minutes
+    const lockCleanupJob = cron.schedule('*/5 * * * *', async () => {
+      logger.info('Running scheduled renewal lock cleanup');
+      try {
+        await renewalLockService.releaseExpiredLocks();
+      } catch (error) {
+        logger.error('Error in scheduled renewal lock cleanup:', error);
+      }
+    });
+
+    this.jobs.push(lockCleanupJob);
 
     logger.info(`Started ${this.jobs.length} scheduled jobs`);
   }

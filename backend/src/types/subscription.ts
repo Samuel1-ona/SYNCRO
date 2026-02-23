@@ -2,11 +2,12 @@ export interface Subscription {
   id: string;
   user_id: string;
   email_account_id: string | null;
+  merchant_id: string | null;
   name: string;
   provider: string;
   price: number;
   billing_cycle: 'monthly' | 'yearly' | 'quarterly';
-  status: 'active' | 'cancelled' | 'paused' | 'trial';
+  status: 'active' | 'cancelled' | 'paused' | 'trial' | 'expired';
   next_billing_date: string | null;
   category: string | null;
   logo_url: string | null;
@@ -14,16 +15,19 @@ export interface Subscription {
   renewal_url: string | null;
   notes: string | null;
   tags: string[];
+  expired_at: string | null;
   created_at: string;
   updated_at: string;
+  last_renewal_cycle_id?: number | null;
 }
 
 export interface SubscriptionCreateInput {
   name: string;
   provider?: string;
+  merchant_id?: string;
   price: number;
   billing_cycle: 'monthly' | 'yearly' | 'quarterly';
-  status?: 'active' | 'cancelled' | 'paused' | 'trial';
+  status?: 'active' | 'cancelled' | 'paused' | 'trial' | 'expired';
   next_billing_date?: string;
   category?: string;
   logo_url?: string;
@@ -37,9 +41,10 @@ export interface SubscriptionCreateInput {
 export interface SubscriptionUpdateInput {
   name?: string;
   provider?: string;
+  merchant_id?: string;
   price?: number;
   billing_cycle?: 'monthly' | 'yearly' | 'quarterly';
-  status?: 'active' | 'cancelled' | 'paused' | 'trial';
+  status?: 'active' | 'cancelled' | 'paused' | 'trial' | 'expired';
   next_billing_date?: string;
   category?: string;
   logo_url?: string;
