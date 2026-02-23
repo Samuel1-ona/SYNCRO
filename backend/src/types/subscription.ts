@@ -19,6 +19,10 @@ export interface Subscription {
   created_at: string;
   updated_at: string;
   last_renewal_cycle_id?: number | null;
+  blockchain_created_at?: number | null;
+  blockchain_activated_at?: number | null;
+  blockchain_last_renewed_at?: number | null;
+  blockchain_canceled_at?: number | null;
 }
 
 export interface SubscriptionCreateInput {
