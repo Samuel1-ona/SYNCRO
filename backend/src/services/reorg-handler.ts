@@ -1,5 +1,6 @@
 import logger from '../config/logger';
 import { supabase } from '../config/database';
+import { LIFECYCLE_COLUMN_MAP } from './event-listener';
 
 export class ReorgHandler {
   private reorgDepth: number = 10; // Safety margin for reorgs
@@ -84,6 +85,16 @@ export class ReorgHandler {
           .delete()
           .eq('blockchain_sub_id', sub_id)
           .eq('approval_id', event.event_data.approval_id);
+        break;
+
+      case 'lifecycle_timestamp_updated':
+        const col = LIFECYCLE_COLUMN_MAP[event.event_data?.event_kind];
+        if (col) {
+          await supabase
+            .from('subscriptions')
+            .update({ [col]: null })
+            .eq('blockchain_sub_id', sub_id);
+        }
         break;
     }
   }

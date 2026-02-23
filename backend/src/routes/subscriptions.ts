@@ -1,3 +1,12 @@
+<<<<<<< HEAD
+import { Router, Response } from 'express';
+import { subscriptionService } from '../services/subscription-service';
+import { giftCardService } from '../services/gift-card-service';
+import { idempotencyService } from '../services/idempotency';
+import { authenticate, AuthenticatedRequest } from '../middleware/auth';
+import { validateSubscriptionOwnership, validateBulkSubscriptionOwnership } from '../middleware/ownership';
+import logger from '../config/logger';
+=======
 import { Router, Response } from "express";
 import { subscriptionService } from "../services/subscription-service";
 import { idempotencyService } from "../services/idempotency";
@@ -7,6 +16,7 @@ import {
   validateBulkSubscriptionOwnership,
 } from "../middleware/ownership";
 import logger from "../config/logger";
+>>>>>>> main
 
 const router = Router();
 
@@ -264,6 +274,57 @@ router.delete("/:id", validateSubscriptionOwnership, async (req: AuthenticatedRe
         error instanceof Error
           ? error.message
           : "Failed to delete subscription",
+    });
+  }
+});
+
+/**
+ * POST /api/subscriptions/:id/attach-gift-card
+ * Attach gift card info to a subscription
+ */
+router.post('/:id/attach-gift-card', validateSubscriptionOwnership, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const subscriptionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    if (!subscriptionId) {
+      return res.status(400).json({ success: false, error: 'Subscription ID required' });
+    }
+    const { giftCardHash, provider } = req.body;
+
+    if (!giftCardHash || !provider) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: giftCardHash, provider',
+      });
+    }
+
+    const result = await giftCardService.attachGiftCard(
+      req.user!.id,
+      subscriptionId,
+      giftCardHash,
+      provider
+    );
+
+    if (!result.success) {
+      const statusCode = result.error?.includes('not found') || result.error?.includes('access denied') ? 404 : 400;
+      return res.status(statusCode).json({
+        success: false,
+        error: result.error,
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      data: result.data,
+      blockchain: {
+        transactionHash: result.blockchainResult?.transactionHash,
+        error: result.blockchainResult?.error,
+      },
+    });
+  } catch (error) {
+    logger.error('Attach gift card error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to attach gift card',
     });
   }
 });

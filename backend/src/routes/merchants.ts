@@ -2,16 +2,13 @@ import { Router, Response, Request } from 'express';
 import { merchantService } from '../services/merchant-service';
 import logger from '../config/logger';
 import { adminAuth } from '../middleware/admin';
+import { renewalRateLimiter } from '../middleware/rate-limiter'; // Added Import
 
 const router = Router();
-
-// Note: adminAuth middleware should be applied in index.ts for creating/updating/deleting.
-// We can assume index.ts manages the authentication boundaries.
 
 /**
  * GET /api/merchants
  * List merchants with optional filtering
- * Publicly accessible (or authenticated access) depending on root router setup.
  */
 router.get('/', async (req: Request, res: Response) => {
     try {
@@ -95,8 +92,9 @@ router.post('/', adminAuth, async (req: Request, res: Response) => {
 /**
  * PATCH /api/merchants/:id
  * Update merchant (Admin only)
+ * NOTE: Rate limiter applied here to prevent mass renewal/update congestion per merchant.
  */
-router.patch('/:id', adminAuth, async (req: Request, res: Response) => {
+router.patch('/:id', adminAuth, renewalRateLimiter, async (req: Request, res: Response) => {
     try {
         const merchant = await merchantService.updateMerchant(req.params.id as string, req.body);
 
