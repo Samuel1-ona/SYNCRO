@@ -347,6 +347,101 @@ export class BlockchainService {
       transactionHash: `${operationPrefix}x${Buffer.from(JSON.stringify(eventData)).toString("hex").slice(0, 62)}`,
     };
   }
+
+  /**
+   * Log gift card attachment to blockchain and database
+   */
+  async logGiftCardAttached(
+    userId: string,
+    subscriptionId: string,
+    giftCardHash: string,
+    provider: string
+  ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
+    const eventData = {
+      subscriptionId,
+      giftCardHash,
+      provider,
+      eventType: 'gift_card_attached',
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const { data: dbLog, error: dbError } = await supabase
+        .from('blockchain_logs')
+        .insert({
+          user_id: userId,
+          event_type: 'gift_card_attached',
+          event_data: eventData,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        logger.error('Failed to log gift card event to database:', dbError);
+        throw dbError;
+      }
+
+      if (this.contractAddress) {
+        try {
+          const result = await this.writeGiftCardToBlockchain(eventData);
+
+          if (result.transactionHash) {
+            await supabase
+              .from('blockchain_logs')
+              .update({
+                transaction_hash: result.transactionHash,
+                status: 'confirmed',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', dbLog.id);
+          }
+
+          return {
+            success: true,
+            transactionHash: result.transactionHash,
+          };
+        } catch (blockchainError) {
+          const errorMessage =
+            blockchainError instanceof Error
+              ? blockchainError.message
+              : String(blockchainError);
+          logger.error('Failed to write gift card to blockchain:', errorMessage);
+          await supabase
+            .from('blockchain_logs')
+            .update({
+              status: 'failed',
+              error_message: errorMessage,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', dbLog.id);
+          return {
+            success: true,
+            error: errorMessage,
+          };
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error('Failed to log gift card event:', errorMessage);
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  private async writeGiftCardToBlockchain(
+    eventData: Record<string, any>
+  ): Promise<{ transactionHash: string }> {
+    logger.info('Gift card blockchain write (mock)');
+    return {
+      transactionHash: `gcx${Buffer.from(JSON.stringify(eventData)).toString('hex').slice(0, 61)}`,
+    };
+  }
 }
 
 export const blockchainService = new BlockchainService();

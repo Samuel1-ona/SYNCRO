@@ -22,28 +22,28 @@ npm install @syncro/sdk
 ## Usage
 
 ```typescript
-import { createSyncroSDK } from '@syncro/sdk';
+import { createSyncroSDK } from "@syncro/sdk";
 
 const sdk = createSyncroSDK({
-  baseUrl: 'https://api.syncro.example.com',
-  getAuth: async () => localStorage.getItem('token') ?? null,
-  credentials: 'include', // or omit for Bearer-only
+    baseUrl: "https://api.syncro.example.com",
+    getAuth: async () => localStorage.getItem("token") ?? null,
+    credentials: "include", // or omit for Bearer-only
 });
 
 // Lifecycle events
-sdk.on('subscription', (event) => {
-  console.log(event.type, event.subscriptionId, event.data);
+sdk.on("subscription", (event) => {
+    console.log(event.type, event.subscriptionId, event.data);
 });
-sdk.on('giftCard', (event) => {
-  console.log(event.type, event.subscriptionId);
+sdk.on("giftCard", (event) => {
+    console.log(event.type, event.subscriptionId);
 });
 
 // Create
 const result = await sdk.createSubscription({
-  name: 'Netflix',
-  price: 15.99,
-  billing_cycle: 'monthly',
-  source: 'manual', // or 'gift_card'
+    name: "Netflix",
+    price: 15.99,
+    billing_cycle: "monthly",
+    source: "manual", // or 'gift_card'
 });
 
 // Get
@@ -72,14 +72,14 @@ await sdk.attachGiftCard(subscriptionId, giftCardHash, provider);
 
 ### Methods
 
-| Method | Description |
-|--------|-------------|
-| `createSubscription(input, options?)` | Create subscription. Emits `subscription` with type `created`. |
-| `getSubscription(id)` | Get subscription by ID |
-| `updateSubscription(id, input, options?)` | Update subscription. Emits `subscription` with type `updated`. |
-| `cancelSubscription(id)` | Soft cancel. Emits `subscription` with type `cancelled`. |
-| `deleteSubscription(id)` | Hard delete. Emits `subscription` with type `deleted`. |
-| `attachGiftCard(subscriptionId, hash, provider)` | Attach gift card. Emits `giftCard` events. |
+| Method                                           | Description                                                    |
+| ------------------------------------------------ | -------------------------------------------------------------- |
+| `createSubscription(input, options?)`            | Create subscription. Emits `subscription` with type `created`. |
+| `getSubscription(id)`                            | Get subscription by ID                                         |
+| `updateSubscription(id, input, options?)`        | Update subscription. Emits `subscription` with type `updated`. |
+| `cancelSubscription(id)`                         | Soft cancel. Emits `subscription` with type `cancelled`.       |
+| `deleteSubscription(id)`                         | Hard delete. Emits `subscription` with type `deleted`.         |
+| `attachGiftCard(subscriptionId, hash, provider)` | Attach gift card. Emits `giftCard` events.                     |
 
 ### Events
 
