@@ -15,16 +15,18 @@ jest.unstable_mockModule("axios", () => ({
 }));
 
 // Dynamic imports are required when using unstable_mockModule
-const { SyncroSDK } = await import("./index.js");
+const { SyncroSDK, init } = await import("./index.js");
 const axios = (await import("axios")).default as any;
 
 describe("SyncroSDK", () => {
-  let sdk: SyncroSDK;
+  let sdk: InstanceType<typeof SyncroSDK>;
   const apiKey = "test-api-key";
 
   beforeEach(() => {
     jest.clearAllMocks();
     sdk = new SyncroSDK({ apiKey });
+    // Add a dummy error listener to prevent unhandled error throws from EventEmitter
+    sdk.on("error", () => {});
   });
 
   describe("cancelSubscription", () => {
@@ -183,5 +185,48 @@ describe("SyncroSDK", () => {
       const subs = await sdk.getUserSubscriptions();
       expect(subs).toEqual(cachedData);
     });
+  });
+});
+
+describe("SDK initialization", () => {
+  beforeEach(() => {
+    axios.create.mockReturnValue(axios as any);
+    jest.clearAllMocks();
+  });
+
+  it("init(config) should return an SDK instance", () => {
+    const sdk = init({
+      wallet: { publicKey: "GTESTPUBLICKEY" },
+      backendApiBaseUrl: "https://api.syncro.example.com",
+    });
+
+    expect(sdk).toBeInstanceOf(SyncroSDK);
+  });
+
+  it("should emit ready event after successful init", async () => {
+    const sdk = init({
+      keypair: { publicKey: () => "GKEYPAIRPUBLICKEY" },
+      backendApiBaseUrl: "https://api.syncro.example.com",
+    });
+
+    const readySpy = jest.fn();
+    sdk.on("ready", readySpy);
+
+    await Promise.resolve();
+
+    expect(readySpy).toHaveBeenCalledWith({
+      backendApiBaseUrl: "https://api.syncro.example.com",
+      publicKey: "GKEYPAIRPUBLICKEY",
+    });
+  });
+
+  it("should throw descriptive errors for invalid configuration", () => {
+    expect(() =>
+      init({
+        backendApiBaseUrl: "not-a-url",
+      } as any),
+    ).toThrow(
+      "Invalid SDK initialization config: backendApiBaseUrl must be a valid URL. Provide either a wallet object or a keypair.",
+    );
   });
 });
