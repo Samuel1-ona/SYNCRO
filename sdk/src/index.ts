@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance } from "axios";
 import { EventEmitter } from "node:events";
+import type { GiftCardEvent, GiftCardEventType } from "./types";
 
 export interface Subscription {
   id: string;
@@ -325,3 +326,4 @@ export function init(config: SyncroSDKInitConfig): SyncroSDK {
 }
 
 export default SyncroSDK;
+export type { GiftCardEvent, GiftCardEventType } from "./types";
