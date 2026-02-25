@@ -1,5 +1,5 @@
 import axios from "axios";
-import { SyncroSDK } from "./index";
+import { init, SyncroSDK } from "./index";
 
 jest.mock("axios");
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -82,5 +82,48 @@ describe("SyncroSDK", () => {
         error: errorMessage,
       });
     });
+  });
+});
+
+describe("SDK initialization", () => {
+  beforeEach(() => {
+    mockedAxios.create.mockReturnValue(mockedAxios as any);
+    jest.clearAllMocks();
+  });
+
+  it("init(config) should return an SDK instance", () => {
+    const sdk = init({
+      wallet: { publicKey: "GTESTPUBLICKEY" },
+      backendApiBaseUrl: "https://api.syncro.example.com",
+    });
+
+    expect(sdk).toBeInstanceOf(SyncroSDK);
+  });
+
+  it("should emit ready event after successful init", async () => {
+    const sdk = init({
+      keypair: { publicKey: () => "GKEYPAIRPUBLICKEY" },
+      backendApiBaseUrl: "https://api.syncro.example.com",
+    });
+
+    const readySpy = jest.fn();
+    sdk.on("ready", readySpy);
+
+    await Promise.resolve();
+
+    expect(readySpy).toHaveBeenCalledWith({
+      backendApiBaseUrl: "https://api.syncro.example.com",
+      publicKey: "GKEYPAIRPUBLICKEY",
+    });
+  });
+
+  it("should throw descriptive errors for invalid configuration", () => {
+    expect(() =>
+      init({
+        backendApiBaseUrl: "not-a-url",
+      } as any),
+    ).toThrow(
+      "Invalid SDK initialization config: backendApiBaseUrl must be a valid URL. Provide either a wallet object or a keypair.",
+    );
   });
 });
