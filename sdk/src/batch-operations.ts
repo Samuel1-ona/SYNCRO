@@ -23,7 +23,8 @@ export interface BatchResult<T, K = string> {
  */
 export async function runBatch<T, K = string>(
   ids: K[],
-  operation: (id: K) => Promise<{ success: boolean; data?: T; error?: string }>,
+  operation: (id: K, options?: { signal?: AbortSignal }) => Promise<{ success: boolean; data?: T; error?: string }>,
+  options?: { signal?: AbortSignal }
 ): Promise<BatchResult<T, K>> {
   if (!ids || ids.length === 0) {
     return { results: [], successCount: 0, failureCount: 0 };
@@ -31,13 +32,15 @@ export async function runBatch<T, K = string>(
 
   const promises = ids.map(async (id): Promise<BatchResultItem<T, K>> => {
     try {
-      const result = await operation(id);
-      return {
-        id,
-        success: result.success,
-        data: result.data,
-        error: result.error,
-      };
+      if (options?.signal?.aborted) {
+        return { id, success: false, error: 'AbortError: The operation was aborted' };
+      }
+      const requestOptions = options?.signal ? { signal: options.signal } : undefined;
+      const result = await operation(id, requestOptions);
+      const item: BatchResultItem<T, K> = { id, success: result.success };
+      if (result.data !== undefined) item.data = result.data;
+      if (result.error !== undefined) item.error = result.error;
+      return item;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       return { id, success: false, error: errorMessage };
