@@ -24,13 +24,41 @@ export interface CancellationResult {
     };
 }
 
-export class SyncroSDK extends EventEmitter {
-    private client: AxiosInstance;
-    private apiKey: string;
+export interface RetryConfig {
+    retries?: number;
+    retryDelay?: (retryCount: number) => number;
+    retryCondition?: (error: any) => boolean;
+}
 
-    constructor(config: { apiKey: string; baseUrl?: string }) {
+export class SyncroSDK extends EventEmitter {
+    public client: AxiosInstance;
+    private apiKey: string;
+    private retryConfig: Required<RetryConfig>;
+
+    constructor(config: {
+        apiKey: string;
+        baseUrl?: string;
+        retryConfig?: RetryConfig;
+    }) {
         super();
         this.apiKey = config.apiKey;
+        this.retryConfig = {
+            retries: config.retryConfig?.retries ?? 3,
+            retryDelay:
+                config.retryConfig?.retryDelay ??
+                ((retryCount: number) => Math.pow(2, retryCount) * 1000),
+            retryCondition:
+                config.retryConfig?.retryCondition ??
+                ((error: any) => {
+                    const status = error.response?.status;
+                    return (
+                        !error.response ||
+                        status === 429 ||
+                        (status >= 500 && status <= 599)
+                    );
+                }),
+        };
+
         this.client = axios.create({
             baseURL: config.baseUrl || "http://localhost:3001/api",
             headers: {
@@ -38,6 +66,34 @@ export class SyncroSDK extends EventEmitter {
                 "Content-Type": "application/json",
             },
         });
+
+        this.setupInterceptors(this.client);
+    }
+
+    private setupInterceptors(client: AxiosInstance) {
+        client.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                const { config } = error;
+
+                if (
+                    !config ||
+                    !this.retryConfig.retries ||
+                    (config.__retryCount || 0) >= this.retryConfig.retries ||
+                    !this.retryConfig.retryCondition(error)
+                ) {
+                    return Promise.reject(error);
+                }
+
+                config.__retryCount = (config.__retryCount || 0) + 1;
+
+                const delay = this.retryConfig.retryDelay(config.__retryCount);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+
+                // IMPORTANT: Must call client(config) to trigger interceptors again
+                return client.request(config);
+            },
+        );
     }
 
     /**
@@ -51,10 +107,11 @@ export class SyncroSDK extends EventEmitter {
         try {
             this.emit("cancelling", { subscriptionId });
 
-            const response = await this.client.post(
-                `/subscriptions/${subscriptionId}/cancel`,
-            );
-            const { data, blockchain } = response.data;
+            const response = await this.client.request({
+                method: "POST",
+                url: `/subscriptions/${subscriptionId}/cancel`,
+            });
+            const { data, blockchain } = response?.data || {};
 
             const result: CancellationResult = {
                 success: true,
@@ -67,13 +124,8 @@ export class SyncroSDK extends EventEmitter {
             this.emit("success", result);
             return result;
         } catch (error: any) {
-            const errorMessage = error.response?.data?.error || error.message;
-
-            const failedResult: any = {
-                success: false,
-                status: "failed",
-                error: errorMessage,
-            };
+            const errorMessage =
+                error.response?.data?.error || error.message || "Unknown error";
 
             this.emit("failure", { subscriptionId, error: errorMessage });
             throw new Error(`Cancellation failed: ${errorMessage}`);
@@ -84,10 +136,11 @@ export class SyncroSDK extends EventEmitter {
      * Get subscription details
      */
     async getSubscription(subscriptionId: string): Promise<Subscription> {
-        const response = await this.client.get(
-            `/subscriptions/${subscriptionId}`,
-        );
-        return response.data.data;
+        const response = await this.client.request({
+            method: "GET",
+            url: `/subscriptions/${subscriptionId}`,
+        });
+        return response?.data?.data;
     }
 }
 
