@@ -57,6 +57,8 @@ describe("SyncroSDK", () => {
 
       expect(mockedAxios.post).toHaveBeenCalledWith(
         `/subscriptions/${subId}/cancel`,
+        undefined,
+        {}
       );
     });
 

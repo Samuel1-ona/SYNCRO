@@ -47,12 +47,16 @@ export class SyncroSDK extends EventEmitter {
      */
     async cancelSubscription(
         subscriptionId: string,
+        options?: { signal?: AbortSignal }
     ): Promise<CancellationResult> {
         try {
             this.emit("cancelling", { subscriptionId });
 
+            const requestConfig = options?.signal ? { signal: options.signal } : {};
             const response = await this.client.post(
                 `/subscriptions/${subscriptionId}/cancel`,
+                undefined,
+                requestConfig
             );
             const { data, blockchain } = response.data;
 
@@ -83,9 +87,14 @@ export class SyncroSDK extends EventEmitter {
     /**
      * Get subscription details
      */
-    async getSubscription(subscriptionId: string): Promise<Subscription> {
+    async getSubscription(
+        subscriptionId: string,
+        options?: { signal?: AbortSignal }
+    ): Promise<Subscription> {
+        const requestConfig = options?.signal ? { signal: options.signal } : {};
         const response = await this.client.get(
             `/subscriptions/${subscriptionId}`,
+            requestConfig
         );
         return response.data.data;
     }
