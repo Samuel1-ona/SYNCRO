@@ -1,6 +1,14 @@
 import axios, { type AxiosInstance } from "axios";
 import { EventEmitter } from "node:events";
-import type { GiftCardEvent, GiftCardEventType } from "./types";
+import type {
+  GiftCardEvent,
+  GiftCardEventType,
+  SyncroSDKConfig,
+  SyncroSDKInitConfig,
+  StellarWallet,
+  StellarKeypair,
+  RetryOptions,
+} from "./types.js";
 
 export interface Subscription {
   id: string;
@@ -28,6 +36,7 @@ export interface CancellationResult {
   };
 }
 
+<<<<<<< fix/issue-99
 export interface StellarWallet {
   publicKey?: string | (() => string);
   signTransaction?: (...args: any[]) => any;
@@ -62,31 +71,222 @@ export interface RetryConfig {
     retryCondition?: (error: any) => boolean;
 }
 
+=======
+>>>>>>> main
 export class SyncroSDK extends EventEmitter {
   private client: AxiosInstance;
-  private apiKey?: string | undefined;
-  private wallet?: StellarWallet | undefined;
-  private keypair?: StellarKeypair | undefined;
+  private apiKey: string;
+  private baseURL: string;
+  private timeout: number;
+  private retryOptions: Required<RetryOptions>;
+  private batchConcurrency: number;
+  private enableLogging: boolean;
+  private wallet: StellarWallet | null;
+  private keypair: StellarKeypair | null;
 
   constructor(config: SyncroSDKConfig) {
     super();
-    this.apiKey = config.apiKey ?? undefined;
-    this.wallet = config.wallet ?? undefined;
-    this.keypair = config.keypair ?? undefined;
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+    // Validate required config
+    this.validateConfig(config);
+
+    // Set api key (required)
+    this.apiKey = config.apiKey;
+
+    // Set base URL with default
+    this.baseURL = config.baseURL || "http://localhost:3001/api";
+
+    // Set timeout with default (30 seconds)
+    this.timeout = config.timeout ?? 30000;
+
+    // Set retry options with defaults
+    this.retryOptions = {
+      maxRetries: config.retryOptions?.maxRetries ?? 3,
+      initialDelayMs: config.retryOptions?.initialDelayMs ?? 1000,
+      maxDelayMs: config.retryOptions?.maxDelayMs ?? 30000,
+      retryableStatusCodes:
+        config.retryOptions?.retryableStatusCodes ?? [408, 429, 500, 502, 503, 504],
     };
 
-    if (this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
+    // Set batch concurrency with default (5)
+    this.batchConcurrency = config.batchConcurrency ?? 5;
+
+    // Set logging with default (false)
+    this.enableLogging = config.enableLogging ?? false;
+
+    // Set optional wallet and keypair
+    this.wallet = config.wallet ?? null;
+    this.keypair = config.keypair ?? null;
+
+    // Log initialization
+    if (this.enableLogging) {
+      console.log("[SyncroSDK] Initializing with config:", {
+        baseURL: this.baseURL,
+        timeout: this.timeout,
+        batchConcurrency: this.batchConcurrency,
+        retryOptions: this.retryOptions,
+      });
     }
 
-    this.client = axios.create({
-      baseURL: config.baseUrl || "http://localhost:3001/api",
+    // Create axios client
+    this.client = this.createAxiosClient();
+  }
+
+  /**
+   * Validate SDK configuration
+   */
+  private validateConfig(config: SyncroSDKConfig): void {
+    const errors: string[] = [];
+
+    // Validate apiKey is provided and is a string
+    if (!config.apiKey || typeof config.apiKey !== "string") {
+      errors.push("apiKey is required and must be a non-empty string");
+    }
+
+    // Validate baseURL if provided
+    if (config.baseURL !== undefined) {
+      if (typeof config.baseURL !== "string") {
+        errors.push("baseURL must be a string");
+      } else {
+        try {
+          new URL(config.baseURL);
+        } catch {
+          errors.push("baseURL must be a valid URL");
+        }
+      }
+    }
+
+    // Validate timeout if provided
+    if (config.timeout !== undefined) {
+      if (typeof config.timeout !== "number" || config.timeout < 0) {
+        errors.push("timeout must be a positive number");
+      }
+    }
+
+    // Validate retryOptions if provided
+    if (config.retryOptions) {
+      if (typeof config.retryOptions !== "object" || config.retryOptions === null) {
+        errors.push("retryOptions must be an object");
+      } else {
+        const { maxRetries, initialDelayMs, maxDelayMs, retryableStatusCodes } =
+          config.retryOptions;
+
+        if (maxRetries !== undefined && (typeof maxRetries !== "number" || maxRetries < 0)) {
+          errors.push("retryOptions.maxRetries must be a non-negative number");
+        }
+
+        if (
+          initialDelayMs !== undefined &&
+          (typeof initialDelayMs !== "number" || initialDelayMs < 0)
+        ) {
+          errors.push("retryOptions.initialDelayMs must be a non-negative number");
+        }
+
+        if (maxDelayMs !== undefined && (typeof maxDelayMs !== "number" || maxDelayMs < 0)) {
+          errors.push("retryOptions.maxDelayMs must be a non-negative number");
+        }
+
+        if (retryableStatusCodes !== undefined) {
+          if (!Array.isArray(retryableStatusCodes)) {
+            errors.push("retryOptions.retryableStatusCodes must be an array");
+          } else if (!retryableStatusCodes.every((code) => typeof code === "number")) {
+            errors.push("retryOptions.retryableStatusCodes must contain only numbers");
+          }
+        }
+      }
+    }
+
+    // Validate batchConcurrency if provided
+    if (config.batchConcurrency !== undefined) {
+      if (typeof config.batchConcurrency !== "number" || config.batchConcurrency < 1) {
+        errors.push("batchConcurrency must be a positive number");
+      }
+    }
+
+    // Validate enableLogging if provided
+    if (config.enableLogging !== undefined && typeof config.enableLogging !== "boolean") {
+      errors.push("enableLogging must be a boolean");
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Invalid SDK configuration: ${errors.join("; ")}`);
+    }
+  }
+
+  /**
+   * Create axios client with configured options
+   */
+  private createAxiosClient(): AxiosInstance {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+
+    const client = axios.create({
+      baseURL: this.baseURL,
+      timeout: this.timeout,
       headers,
     });
+
+    // Add response interceptor for retry logic
+    client.interceptors.response.use(
+      (response: any) => response,
+      async (error: any) => {
+        const config = error.config;
+
+        // Initialize retry count
+        if (!config._retryCount) {
+          config._retryCount = 0;
+        }
+
+        // Check if should retry
+        const shouldRetry =
+          config._retryCount < this.retryOptions.maxRetries &&
+          error.response &&
+          this.retryOptions.retryableStatusCodes.includes(error.response.status);
+
+        if (shouldRetry) {
+          config._retryCount++;
+
+          // Calculate exponential backoff delay
+          const delay = Math.min(
+            this.retryOptions.initialDelayMs * Math.pow(2, config._retryCount - 1),
+            this.retryOptions.maxDelayMs,
+          );
+
+          if (this.enableLogging) {
+            console.log(
+              `[SyncroSDK] Retrying request (attempt ${config._retryCount}/${this.retryOptions.maxRetries}) after ${delay}ms`,
+            );
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return client(config);
+        }
+
+        return Promise.reject(error);
+      },
+    );
+
+    return client;
   }
+
+  /**
+   * Get batch concurrency limit
+   */
+  getBatchConcurrency(): number {
+    return this.batchConcurrency;
+  }
+
+  /**
+   * Log message if logging is enabled
+   */
+  protected log(...args: any[]): void {
+    if (this.enableLogging) {
+      console.log("[SyncroSDK]", ...args);
+    }
+  }
+
 
   /**
    * Cancel a subscription programmatically
@@ -97,6 +297,7 @@ export class SyncroSDK extends EventEmitter {
     subscriptionId: string,
   ): Promise<CancellationResult> {
     try {
+      this.log("Cancelling subscription:", subscriptionId);
       this.emit("cancelling", { subscriptionId });
 
       const response = await this.client.post(
@@ -112,10 +313,12 @@ export class SyncroSDK extends EventEmitter {
         blockchain: blockchain,
       };
 
+      this.log("Subscription cancelled successfully:", subscriptionId);
       this.emit("success", result);
       return result;
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message;
+      this.log("Error cancelling subscription:", subscriptionId, errorMessage);
 
       const failedResult: any = {
         success: false,
@@ -133,6 +336,7 @@ export class SyncroSDK extends EventEmitter {
    * Get subcription details
    */
   async getSubscription(subscriptionId: string): Promise<Subscription> {
+    this.log("Fetching subscription:", subscriptionId);
     const response = await this.client.get(`/subscriptions/${subscriptionId}`);
     return this.normalizeSubscription(response.data.data);
   }
@@ -145,6 +349,7 @@ export class SyncroSDK extends EventEmitter {
       throw new Error("API Key is required to fetch subscriptions");
     }
 
+    this.log("Fetching all user subscriptions");
     const cacheKey = `syncro_subs_${this.apiKey}`;
 
     try {
@@ -178,14 +383,15 @@ export class SyncroSDK extends EventEmitter {
 
       // Update cache
       this.updateCache(cacheKey, normalized);
+      this.log(`Fetched ${normalized.length} subscriptions`);
 
       return normalized;
     } catch (error) {
       // Offline/Error support: Check cache
       const cached = this.getCache(cacheKey);
       if (cached) {
-        console.warn(
-          "SyncroSDK: Network error, returning cached subscriptions.",
+        this.log(
+          "Network error, returning cached subscriptions.",
         );
         return cached;
       }
@@ -212,9 +418,11 @@ export class SyncroSDK extends EventEmitter {
             timestamp: Date.now(),
           }),
         );
+        this.log("Cache updated for key:", key);
       }
     } catch (e) {
       // Silently fail if storage is full or unavailable
+      this.log("Cache update failed:", e);
     }
   }
 
@@ -223,10 +431,12 @@ export class SyncroSDK extends EventEmitter {
       if (typeof window !== "undefined" && window.localStorage) {
         const cached = localStorage.getItem(key);
         if (cached) {
+          this.log("Cache hit for key:", key);
           return JSON.parse(cached).data;
         }
       }
     } catch (e) {
+      this.log("Cache read failed:", e);
       return null;
     }
     return null;
@@ -252,41 +462,46 @@ function validateInitConfig(config: SyncroSDKInitConfig): void {
     );
   }
 
-  if (
-    typeof config.backendApiBaseUrl !== "string" ||
-    config.backendApiBaseUrl.trim().length === 0
-  ) {
-    errors.push(
-      "backendApiBaseUrl is required and must be a non-empty string.",
-    );
-  } else {
-    try {
-      new URL(config.backendApiBaseUrl);
-    } catch {
-      errors.push("backendApiBaseUrl must be a valid URL.");
+  // Validate apiKey is provided
+  if (!config.apiKey || typeof config.apiKey !== "string") {
+    errors.push("apiKey is required and must be a non-empty string");
+  }
+
+  // Handle both baseURL and backendApiBaseUrl for backwards compatibility
+  const baseUrl = config.baseURL || config.backendApiBaseUrl;
+
+  if (baseUrl) {
+    if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
+      errors.push("baseURL must be a non-empty string");
+    } else {
+      try {
+        new URL(baseUrl);
+      } catch {
+        errors.push("baseURL must be a valid URL");
+      }
     }
   }
 
   if (!config.wallet && !config.keypair) {
-    errors.push("Provide either a wallet object or a keypair.");
+    errors.push("Provide either a wallet object or a keypair");
   }
 
   if (config.wallet && !isObject(config.wallet)) {
-    errors.push("wallet must be an object.");
+    errors.push("wallet must be an object");
   }
 
   if (config.keypair) {
     if (!isObject(config.keypair)) {
-      errors.push("keypair must be an object.");
+      errors.push("keypair must be an object");
     } else if (!hasFunctionOrStringPublicKey(config.keypair.publicKey)) {
       errors.push(
-        "keypair.publicKey must be a string or a function returning a string.",
+        "keypair.publicKey must be a string or a function returning a string",
       );
     }
   }
 
   if (errors.length > 0) {
-    throw new Error(`Invalid SDK initialization config: ${errors.join(" ")}`);
+    throw new Error(`Invalid SDK initialization config: ${errors.join("; ")}`);
   }
 }
 
@@ -309,18 +524,50 @@ function getSignerPublicKey(
   return undefined;
 }
 
+/**
+ * Create and initialize a Syncro SDK instance
+ * @param config SDK configuration
+ * @returns Initialized SyncroSDK instance
+ * @throws Error if configuration is invalid
+ * @example
+ * ```typescript
+ * const sdk = init({
+ *   apiKey: "your-api-key",
+ *   baseURL: "https://api.syncro.example.com",
+ *   timeout: 30000,
+ *   enableLogging: true,
+ *   retryOptions: {
+ *     maxRetries: 3,
+ *     initialDelayMs: 1000,
+ *   },
+ *   wallet: yourWallet,
+ * });
+ * ```
+ */
 export function init(config: SyncroSDKInitConfig): SyncroSDK {
   validateInitConfig(config);
 
-  const sdk = new SyncroSDK({
+  // Use baseURL if provided, otherwise fall back to backendApiBaseUrl for backwards compatibility
+  const finalConfig: SyncroSDKConfig = {
     apiKey: config.apiKey,
-    baseUrl: config.backendApiBaseUrl,
-    wallet: config.wallet,
-    keypair: config.keypair,
-  });
+    ...(config.baseURL !== undefined && { baseURL: config.baseURL }),
+    ...(config.baseURL === undefined && config.backendApiBaseUrl !== undefined && {
+      baseURL: config.backendApiBaseUrl,
+    }),
+    ...(config.timeout !== undefined && { timeout: config.timeout }),
+    ...(config.retryOptions !== undefined && { retryOptions: config.retryOptions }),
+    ...(config.batchConcurrency !== undefined && {
+      batchConcurrency: config.batchConcurrency,
+    }),
+    ...(config.enableLogging !== undefined && { enableLogging: config.enableLogging }),
+    ...(config.wallet !== undefined && { wallet: config.wallet }),
+    ...(config.keypair !== undefined && { keypair: config.keypair }),
+  };
+
+  const sdk = new SyncroSDK(finalConfig);
 
   const readyPayload = {
-    backendApiBaseUrl: config.backendApiBaseUrl,
+    baseURL: finalConfig.baseURL,
     publicKey: getSignerPublicKey(config.wallet, config.keypair),
   };
 
@@ -332,4 +579,12 @@ export function init(config: SyncroSDKInitConfig): SyncroSDK {
 }
 
 export default SyncroSDK;
-export type { GiftCardEvent, GiftCardEventType } from "./types";
+export type {
+  GiftCardEvent,
+  GiftCardEventType,
+  SyncroSDKConfig,
+  SyncroSDKInitConfig,
+  RetryOptions,
+  StellarWallet,
+  StellarKeypair,
+} from "./types.js";
